@@ -4,7 +4,7 @@
   "description": "",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.77.1"
   },
   "categories": [
     "Other"
@@ -16,6 +16,17 @@
       {
         "command": "helloworld.helloWorld",
         "title": "Hello World"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "tests.rawTextEditor",
+        "displayName": "Raw Text Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.txt"
+          }
+        ]
       }
     ]
   },
@@ -31,7 +42,7 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.84.0",
     "@types/mocha": "^10.0.3",
     "@types/node": "18.x",
     "@typescript-eslint/eslint-plugin": "^6.9.0",
