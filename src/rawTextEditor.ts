@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { RawTextEditorThingy } from './rawTextOutline';
 
 
 function getNonce() {
@@ -10,16 +11,26 @@ function getNonce() {
     return text;
 }
 
-export class RawTextEditorProvider implements vscode.CustomTextEditorProvider {
-    public static register(context: vscode.ExtensionContext): vscode.Disposable {
+export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  RawTextEditorThingy{
+
+    private onRawTextDocumentChangedSet = new Set< (e: vscode.TextDocumentChangeEvent) => void >();
+    private onRawTextActiveEditorChangedSet = new Set< (e: vscode.TextDocument) => void >();
+
+    public static register(context: vscode.ExtensionContext): [vscode.Disposable, RawTextEditorThingy] {
         const provider = new RawTextEditorProvider(context);
-        return vscode.window.registerCustomEditorProvider(RawTextEditorProvider.viewType, provider);
+        return [vscode.window.registerCustomEditorProvider(RawTextEditorProvider.viewType, provider), provider];
     }
 
     private static readonly viewType = 'tests.rawTextEditor';
 
     constructor(private readonly context: vscode.ExtensionContext) {
         
+    }
+    onRawTextActiveEditorChanged(callback: (e: vscode.TextDocument) => void): void {
+        this.onRawTextActiveEditorChangedSet.add(callback);
+    }
+    onRawTextDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void {
+        this.onRawTextDocumentChangedSet.add(callback);
     }
 
     public async resolveCustomTextEditor(
@@ -32,18 +43,45 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider {
         };
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
-        function updateWebview() {
+        webviewPanel.onDidChangeViewState(e => {
+            if (e.webviewPanel.active) {
+                this.onRawTextActiveEditorChangedSet.forEach(callback => {
+                    callback(document);
+                });
+            }
+        });
+
+        this.onRawTextActiveEditorChangedSet.forEach(callback => {
+            callback(document);
+        });
+
+        const updateWebview = () => {
             webviewPanel.webview.postMessage({
                 command: 'update',
                 text: document.getText()
             });
+            // this.onRawTextActiveEditorChangedSet.forEach(callback => {
+            //     callback(document);
+            // });
         }
 
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
                 updateWebview();
+                this.onRawTextDocumentChangedSet.forEach(callback => {
+                    callback(e);
+                });
             }
         });
+
+        // const activeEditorSubscription = vscode.window.onDidChangeActiveTextEditor(e => {
+        //     if (e?.document.uri.toString() === document.uri.toString()) {
+        //         updateWebview();
+        //         this.onRawTextActiveEditorChangedSet.forEach(callback => {
+        //             callback(e?.document);
+        //         });
+        //     }
+        // });
         
         const messageSubscription = webviewPanel.webview.onDidReceiveMessage(e => {
             switch (e.command) {
@@ -59,6 +97,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider {
         webviewPanel.onDidDispose(() => {
             changeDocumentSubscription.dispose();
             messageSubscription.dispose();
+            //activeEditorSubscription.dispose();
         });
 
         updateWebview();

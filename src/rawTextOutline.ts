@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-
+export interface RawTextEditorThingy {
+    onRawTextActiveEditorChanged(callback: (e: vscode.TextDocument) => void): unknown;
+    onRawTextDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void;
+}
 
 export class RawTextOutlineProvider implements vscode.TreeDataProvider< string > {
 
@@ -10,29 +13,29 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 
     
     //This gets updated whenever the contests get refreshed.
-	private editor: vscode.TextEditor | undefined;
+	//private editor: vscode.TextEditor | undefined;
 	private lines: string[] | undefined;
 
 	private autoRefresh = true;
 
-	constructor(private context: vscode.ExtensionContext) {
-		vscode.window.onDidChangeActiveTextEditor(() => this.onActiveEditorChanged());
-		vscode.workspace.onDidChangeTextDocument(e => this.onDocumentChanged(e));
-		this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autorefresh', false);
+	constructor(private context: vscode.ExtensionContext, private editorProvider: RawTextEditorThingy) {
+
+        editorProvider.onRawTextActiveEditorChanged(e => this.onRawTextActiveEditorChanged(e)) ;
+		editorProvider.onRawTextDocumentChanged(e => this.onRawTextDocumentChanged(e));
+
+
+		this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autorefresh', true);
 		vscode.workspace.onDidChangeConfiguration(() => {
-			this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autorefresh', false);
+			this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autorefresh', true);
 		});
-		this.onActiveEditorChanged();
+		this.onRawTextActiveEditorChanged(undefined);
+
 	}
 
-	refresh(location?: string): void {
+	refresh(location?: string, document?: vscode.TextDocument): void {
         //This gets called for example from when the active editor changes.
-		this.parseStuff();
-		if (location) {
-			this._onDidChangeTreeData.fire(location);
-		} else {
-			this._onDidChangeTreeData.fire(undefined);
-		}
+		this.parseStuff( document );
+		this._onDidChangeTreeData.fire(location);
 	}
     //So rename gets called by a registered command.  So I can come back to this and make it something about deleting a line or something like that.
 
@@ -60,33 +63,31 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 	// 	});
 	// }
 
-	private onActiveEditorChanged(): void {
-		if (vscode.window.activeTextEditor) {
-			if (vscode.window.activeTextEditor.document.uri.scheme === 'file') {
-				const enabled = vscode.window.activeTextEditor.document.languageId === 'python';
-				vscode.commands.executeCommand('setContext', 'rawTextOutlineEnabled', enabled);
-				if (enabled) {
-					this.refresh();
-				}
-			}
-		} else {
-			vscode.commands.executeCommand('setContext', 'rawTextOutlineEnabled', false);
-		}
+	private onRawTextActiveEditorChanged( document?: vscode.TextDocument): void {
+        if (document) {
+            var enabled = document !== undefined;
+            vscode.commands.executeCommand('setContext', 'rawTextOutlineEnabled', enabled);
+            if (enabled) {
+                this.refresh(undefined, document);
+            }
+        }else{
+            this.refresh( undefined, undefined );
+        }
+
 	}
 
-	private onDocumentChanged(changeEvent: vscode.TextDocumentChangeEvent): void {
-		if (this.lines && this.autoRefresh && changeEvent.document.uri.toString() === this.editor?.document.uri.toString()) {
-            this.parseStuff();
+	private onRawTextDocumentChanged(changeEvent: vscode.TextDocumentChangeEvent): void {
+		if (this.autoRefresh) {
+            //Need to pass the document from the event into parseStuff
+            this.parseStuff( changeEvent.document );
             this._onDidChangeTreeData.fire(undefined);
 		}
 	}
 
-	private parseStuff(): void {
-		this.editor = vscode.window.activeTextEditor;
-		if (this.editor && this.editor.document) {
-			const text = this.editor.document.getText();
-			this.lines = text.split('\n');
-		}
+	private parseStuff( document?: vscode.TextDocument ): void {
+        if( document ){
+            this.lines = document.getText().split('\n');
+        }
 	}
 
 	getChildren(location?: string): Thenable<string[]> {
@@ -116,9 +117,7 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 		if (!this.lines) {
 			throw new Error('Invalid tree');
 		}
-		if (!this.editor) {
-			throw new Error('Invalid editor');
-		}
+
 
         const _location = location ? location : 'root';
         const location_path = _location.split('.');

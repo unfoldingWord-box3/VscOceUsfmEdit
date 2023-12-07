@@ -24,10 +24,11 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 
-	context.subscriptions.push( RawTextEditorProvider.register(context) );
+	const [rawTextEditorProviderDisposable, rawTextEditorProviderObject] = RawTextEditorProvider.register(context);
+	context.subscriptions.push( rawTextEditorProviderDisposable );
 
 
-	const rawTextOutlineProvider = new RawTextOutlineProvider(context);
+	const rawTextOutlineProvider = new RawTextOutlineProvider(context,rawTextEditorProviderObject);
 	vscode.window.registerTreeDataProvider('tests.testTree', rawTextOutlineProvider);
 }
 
