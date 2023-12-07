@@ -16,6 +16,13 @@
       {
         "command": "helloworld.helloWorld",
         "title": "Hello World"
+      },{
+        "command": "rawTextOutline.selectLine",
+        "title": "Select Line",
+				"icon": {
+					"light": "resources/light/edit.svg",
+					"dark": "resources/dark/edit.svg"
+				}
       }
     ],
     "customEditors": [
@@ -35,6 +42,15 @@
           "id": "tests.testTree",
           "name": "Test Tree",
           "when": "rawTextOutlineEnabled"
+        }
+      ]
+    },
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "rawTextOutline.selectLine",
+          "when": "view == tests.testTree && viewItem == selectable",
+					"group": "inline"
         }
       ]
     }

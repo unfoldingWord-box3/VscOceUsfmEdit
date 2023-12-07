@@ -30,6 +30,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const rawTextOutlineProvider = new RawTextOutlineProvider(context,rawTextEditorProviderObject);
 	vscode.window.registerTreeDataProvider('tests.testTree', rawTextOutlineProvider);
+
+	vscode.commands.registerCommand('rawTextOutline.selectLine', (location: string) => {
+		console.log( location );	
+	});
 }
 
 // This method is called when your extension is deactivated

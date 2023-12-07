@@ -124,6 +124,7 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 
         let content = "document";
         let hasChildren = false;
+        let isSelectable = false;
         if( location_path.length < 2 ){
             content = "document";
             hasChildren = true;
@@ -146,6 +147,7 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
                 }
             }else{
                 hasChildren = true;
+                isSelectable = true;
             }
         }
 
@@ -158,6 +160,11 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
         // };
         // treeItem.iconPath = this.getIcon(valueNode);
         // treeItem.contextValue = valueNode.type;
+
+        if( isSelectable ){
+            treeItem.contextValue = "selectable";
+        }
+
         return treeItem;
 	}
 
