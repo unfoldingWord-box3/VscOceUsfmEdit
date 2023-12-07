@@ -32,7 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.window.registerTreeDataProvider('tests.testTree', rawTextOutlineProvider);
 
 	vscode.commands.registerCommand('rawTextOutline.selectLine', (location: string) => {
-		console.log( location );	
+		rawTextOutlineProvider.selectLine(location);
 	});
 }
 

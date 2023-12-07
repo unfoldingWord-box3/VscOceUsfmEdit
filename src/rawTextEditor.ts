@@ -15,6 +15,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
 
     private onRawTextDocumentChangedSet = new Set< (e: vscode.TextDocumentChangeEvent) => void >();
     private onRawTextActiveEditorChangedSet = new Set< (e: vscode.TextDocument) => void >();
+    private liveWebViews = new Set<vscode.WebviewPanel>();
 
     public static register(context: vscode.ExtensionContext): [vscode.Disposable, RawTextEditorThingy] {
         const provider = new RawTextEditorProvider(context);
@@ -25,6 +26,14 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
 
     constructor(private readonly context: vscode.ExtensionContext) {
         
+    }
+    selectLine(lineNumber: number): void {
+        this.liveWebViews.forEach(webviewPanel => {
+            webviewPanel.webview.postMessage({
+                command: 'selectLine',
+                lineNumber
+            });
+        });
     }
     onRawTextActiveEditorChanged(callback: (e: vscode.TextDocument) => void): void {
         this.onRawTextActiveEditorChangedSet.add(callback);
@@ -63,7 +72,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
             // this.onRawTextActiveEditorChangedSet.forEach(callback => {
             //     callback(document);
             // });
-        }
+        };
 
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
@@ -93,11 +102,14 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
                     break;
             }
         });
+
+        this.liveWebViews.add(webviewPanel);
         
         webviewPanel.onDidDispose(() => {
             changeDocumentSubscription.dispose();
             messageSubscription.dispose();
             //activeEditorSubscription.dispose();
+            this.liveWebViews.delete(webviewPanel);
         });
 
         updateWebview();

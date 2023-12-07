@@ -4,6 +4,7 @@ import * as path from 'path';
 export interface RawTextEditorThingy {
     onRawTextActiveEditorChanged(callback: (e: vscode.TextDocument) => void): unknown;
     onRawTextDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void;
+    selectLine( lineNumber: number ): void;
 }
 
 export class RawTextOutlineProvider implements vscode.TreeDataProvider< string > {
@@ -24,9 +25,9 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 		editorProvider.onRawTextDocumentChanged(e => this.onRawTextDocumentChanged(e));
 
 
-		this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autorefresh', true);
+		this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autoRefresh', true);
 		vscode.workspace.onDidChangeConfiguration(() => {
-			this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autorefresh', true);
+			this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autoRefresh', true);
 		});
 		this.onRawTextActiveEditorChanged(undefined);
 
@@ -167,6 +168,22 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 
         return treeItem;
 	}
+
+    selectLine( location: string ): void {
+        if( location === undefined ){ return; }
+        
+        const location_path = location.split('.');
+
+        if( location_path.length >= 2 ){
+            const line_number = parseInt(location_path[1].split(' ')[1]);
+
+            if( isNaN(line_number) || this.lines === undefined || line_number >= this.lines.length ){
+                throw (new Error(`Could not find line number ${line_number}`));
+            }
+
+            this.editorProvider.selectLine( line_number );
+        }
+    }
 
 
     //----
