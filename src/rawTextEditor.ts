@@ -129,6 +129,11 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
         const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'rawTextEditor.css'));
 
+
+        const testImageUri = webview.asWebviewUri(vscode.Uri.joinPath(
+            this.context.extensionUri, 'webview-ui', 'build', 'vite.svg'));
+    
+
         // Use a nonce to whitelist which scripts can be run
         const nonce = getNonce();
 
@@ -155,6 +160,10 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
             <body>
 
                 <h1>Raw Text Editor</h1>
+
+                <!-- Test image -->
+                <img id="test-image" src="${testImageUri}" />
+
                 <textarea id="text-box"></textarea>
                 
                 <script nonce="${nonce}" src="${scriptUri}"></script>
