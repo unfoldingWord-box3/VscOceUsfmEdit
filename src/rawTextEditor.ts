@@ -130,9 +130,14 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
             this.context.extensionUri, 'media', 'rawTextEditor.css'));
 
 
-        const testImageUri = webview.asWebviewUri(vscode.Uri.joinPath(
+        const viteLogoUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'webview-ui', 'build', 'vite.svg'));
-    
+
+        const reactIndexJsUri = webview.asWebviewUri(vscode.Uri.joinPath(
+            this.context.extensionUri, 'webview-ui', 'build', 'assets', 'index.js'));
+        
+        const reactIndexCssUri = webview.asWebviewUri(vscode.Uri.joinPath(
+            this.context.extensionUri, 'webview-ui', 'build', 'assets', 'index.css'));
 
         // Use a nonce to whitelist which scripts can be run
         const nonce = getNonce();
@@ -156,17 +161,26 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
                 <link nonce="${nonce}" href="${styleMainUri}" rel="stylesheet" />
 
                 <title>Raw Text Editor</title>
+
+
+                <meta charset="UTF-8" />
+                <link rel="icon" type="image/svg+xml" href="${viteLogoUri}" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <script nonce="${nonce}" type="module" crossorigin src="${reactIndexJsUri}"></script>
+                <link nonce="${nonce}" rel="stylesheet" crossorigin href="${reactIndexCssUri}">
             </head>
             <body>
 
                 <h1>Raw Text Editor</h1>
 
-                <!-- Test image -->
-                <img id="test-image" src="${testImageUri}" />
-
                 <textarea id="text-box"></textarea>
+
+                <div id="root"></div>
                 
                 <script nonce="${nonce}" src="${scriptUri}"></script>
+
+
+
             </body>
             </html>`;
     }
