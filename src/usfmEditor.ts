@@ -1,16 +1,6 @@
 import * as vscode from 'vscode';
 import { UsfmEditorAbstraction } from './usfmOutline';
 
-
-function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
-}
-
 export function findEdit( before: string, after: string ): { start: number, end: number, newText: string } {
     //First find where the text is different from the start.
     let start = 0;
@@ -162,8 +152,6 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
         const reactIndexCssUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'webview-ui', 'build', 'assets', 'index.css'));
 
-        // Use a nonce to whitelist which scripts can be run
-        const nonce = getNonce();
 
         return /* html */`
             <!DOCTYPE html>
@@ -171,17 +159,11 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
             <head>
                 <meta charset="UTF-8">
 
-                <!--
-                Use a content security policy to only allow loading images from https or from our extension directory,
-                and only allow scripts that have a specific nonce.
-                -->
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-                <link nonce="${nonce}" href="${styleResetUri}" rel="stylesheet" />
-                <link nonce="${nonce}" href="${styleVSCodeUri}" rel="stylesheet" />
-                <link nonce="${nonce}" href="${styleMainUri}" rel="stylesheet" />
+                <link href="${styleResetUri}" rel="stylesheet" />
+                <link href="${styleVSCodeUri}" rel="stylesheet" />
+                <link href="${styleMainUri}" rel="stylesheet" />
 
                 <title>Usfm Editor</title>
 
@@ -189,8 +171,8 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
                 <meta charset="UTF-8" />
                 <link rel="icon" type="image/svg+xml" href="${viteLogoUri}" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <script nonce="${nonce}" type="module" crossorigin src="${reactIndexJsUri}"></script>
-                <link nonce="${nonce}" rel="stylesheet" crossorigin href="${reactIndexCssUri}">
+                <script type="module" crossorigin src="${reactIndexJsUri}"></script>
+                <link rel="stylesheet" crossorigin href="${reactIndexCssUri}">
             </head>
             <body>
 
@@ -200,7 +182,7 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
 
                 <div id="root"></div>
                 
-                <script nonce="${nonce}" src="${scriptUri}"></script>
+                <script src="${scriptUri}"></script>
 
 
 
