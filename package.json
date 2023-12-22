@@ -28,7 +28,7 @@
         "displayName": "Usfm Editor",
         "selector": [
           {
-            "filenamePattern": "*.txt"
+            "filenamePattern": "*.usfm"
           }
         ]
       }
