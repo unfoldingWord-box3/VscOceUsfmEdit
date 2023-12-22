@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { RawTextEditorThingy } from './rawTextOutline';
+import { UsfmEditorThingy } from './usfmOutline';
 
 
 function getNonce() {
@@ -11,18 +11,18 @@ function getNonce() {
     return text;
 }
 
-export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  RawTextEditorThingy{
+export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  UsfmEditorThingy{
 
-    private onRawTextDocumentChangedSet = new Set< (e: vscode.TextDocumentChangeEvent) => void >();
-    private onRawTextActiveEditorChangedSet = new Set< (e: vscode.TextDocument) => void >();
+    private onUsfmDocumentChangedSet = new Set< (e: vscode.TextDocumentChangeEvent) => void >();
+    private onUsfmActiveEditorChangedSet = new Set< (e: vscode.TextDocument) => void >();
     private liveWebViews = new Set<vscode.WebviewPanel>();
 
-    public static register(context: vscode.ExtensionContext): [vscode.Disposable, RawTextEditorThingy] {
-        const provider = new RawTextEditorProvider(context);
-        return [vscode.window.registerCustomEditorProvider(RawTextEditorProvider.viewType, provider), provider];
+    public static register(context: vscode.ExtensionContext): [vscode.Disposable, UsfmEditorThingy] {
+        const provider = new UsfmEditorProvider(context);
+        return [vscode.window.registerCustomEditorProvider(UsfmEditorProvider.viewType, provider), provider];
     }
 
-    private static readonly viewType = 'tests.rawTextEditor';
+    private static readonly viewType = 'tests.usfmEditor';
 
     constructor(private readonly context: vscode.ExtensionContext) {
         
@@ -35,11 +35,11 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
             });
         });
     }
-    onRawTextActiveEditorChanged(callback: (e: vscode.TextDocument) => void): void {
-        this.onRawTextActiveEditorChangedSet.add(callback);
+    onUsfmActiveEditorChanged(callback: (e: vscode.TextDocument) => void): void {
+        this.onUsfmActiveEditorChangedSet.add(callback);
     }
-    onRawTextDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void {
-        this.onRawTextDocumentChangedSet.add(callback);
+    onUsfmDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void {
+        this.onUsfmDocumentChangedSet.add(callback);
     }
 
     public async resolveCustomTextEditor(
@@ -54,13 +54,13 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
 
         webviewPanel.onDidChangeViewState(e => {
             if (e.webviewPanel.active) {
-                this.onRawTextActiveEditorChangedSet.forEach(callback => {
+                this.onUsfmActiveEditorChangedSet.forEach(callback => {
                     callback(document);
                 });
             }
         });
 
-        this.onRawTextActiveEditorChangedSet.forEach(callback => {
+        this.onUsfmActiveEditorChangedSet.forEach(callback => {
             callback(document);
         });
 
@@ -69,7 +69,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
                 command: 'update',
                 text: document.getText()
             });
-            // this.onRawTextActiveEditorChangedSet.forEach(callback => {
+            // this.onUsfmActiveEditorChangedSet.forEach(callback => {
             //     callback(document);
             // });
         };
@@ -77,7 +77,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
                 updateWebview();
-                this.onRawTextDocumentChangedSet.forEach(callback => {
+                this.onUsfmDocumentChangedSet.forEach(callback => {
                     callback(e);
                 });
             }
@@ -86,7 +86,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
         // const activeEditorSubscription = vscode.window.onDidChangeActiveTextEditor(e => {
         //     if (e?.document.uri.toString() === document.uri.toString()) {
         //         updateWebview();
-        //         this.onRawTextActiveEditorChangedSet.forEach(callback => {
+        //         this.onUsfmActiveEditorChangedSet.forEach(callback => {
         //             callback(e?.document);
         //         });
         //     }
@@ -118,7 +118,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
     private getHtmlForWebview(webview: vscode.Webview): string {
         // Local path to script and css for the webview
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
-            this.context.extensionUri, 'media', 'rawTextEditor.js'));
+            this.context.extensionUri, 'media', 'usfmEditor.js'));
 
         const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'reset.css'));
@@ -127,7 +127,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
             this.context.extensionUri, 'media', 'vscode.css'));
 
         const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(
-            this.context.extensionUri, 'media', 'rawTextEditor.css'));
+            this.context.extensionUri, 'media', 'usfmEditor.css'));
 
 
         const viteLogoUri = webview.asWebviewUri(vscode.Uri.joinPath(
@@ -160,7 +160,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
                 <link nonce="${nonce}" href="${styleVSCodeUri}" rel="stylesheet" />
                 <link nonce="${nonce}" href="${styleMainUri}" rel="stylesheet" />
 
-                <title>Raw Text Editor</title>
+                <title>Usfm Editor</title>
 
 
                 <meta charset="UTF-8" />
@@ -171,7 +171,7 @@ export class RawTextEditorProvider implements vscode.CustomTextEditorProvider,  
             </head>
             <body>
 
-                <h1>Raw Text Editor</h1>
+                <h1>Usfm Editor</h1>
 
                 <textarea id="text-box"></textarea>
 

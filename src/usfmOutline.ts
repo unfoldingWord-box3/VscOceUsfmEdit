@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-export interface RawTextEditorThingy {
-    onRawTextActiveEditorChanged(callback: (e: vscode.TextDocument) => void): unknown;
-    onRawTextDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void;
+export interface UsfmEditorThingy {
+    onUsfmActiveEditorChanged(callback: (e: vscode.TextDocument) => void): unknown;
+    onUsfmDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void;
     selectLine( lineNumber: number ): void;
 }
 
-export class RawTextOutlineProvider implements vscode.TreeDataProvider< string > {
+export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 
 	private _onDidChangeTreeData: vscode.EventEmitter< string | undefined> = new vscode.EventEmitter<string | undefined>();
 	readonly onDidChangeTreeData: vscode.Event<string | undefined> = this._onDidChangeTreeData.event;
@@ -19,17 +19,17 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 
 	private autoRefresh = true;
 
-	constructor(private context: vscode.ExtensionContext, private editorProvider: RawTextEditorThingy) {
+	constructor(private context: vscode.ExtensionContext, private editorProvider: UsfmEditorThingy) {
 
-        editorProvider.onRawTextActiveEditorChanged(e => this.onRawTextActiveEditorChanged(e)) ;
-		editorProvider.onRawTextDocumentChanged(e => this.onRawTextDocumentChanged(e));
+        editorProvider.onUsfmActiveEditorChanged(e => this.onUsfmActiveEditorChanged(e)) ;
+		editorProvider.onUsfmDocumentChanged(e => this.onUsfmDocumentChanged(e));
 
 
-		this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autoRefresh', true);
+		this.autoRefresh = vscode.workspace.getConfiguration('usfmOutline').get('autoRefresh', true);
 		vscode.workspace.onDidChangeConfiguration(() => {
-			this.autoRefresh = vscode.workspace.getConfiguration('rawTextOutline').get('autoRefresh', true);
+			this.autoRefresh = vscode.workspace.getConfiguration('usfmOutline').get('autoRefresh', true);
 		});
-		this.onRawTextActiveEditorChanged(undefined);
+		this.onUsfmActiveEditorChanged(undefined);
 
 	}
 
@@ -64,10 +64,10 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 	// 	});
 	// }
 
-	private onRawTextActiveEditorChanged( document?: vscode.TextDocument): void {
+	private onUsfmActiveEditorChanged( document?: vscode.TextDocument): void {
         if (document) {
             var enabled = document !== undefined;
-            vscode.commands.executeCommand('setContext', 'rawTextOutlineEnabled', enabled);
+            vscode.commands.executeCommand('setContext', 'usfmOutlineEnabled', enabled);
             if (enabled) {
                 this.refresh(undefined, document);
             }
@@ -77,7 +77,7 @@ export class RawTextOutlineProvider implements vscode.TreeDataProvider< string >
 
 	}
 
-	private onRawTextDocumentChanged(changeEvent: vscode.TextDocumentChangeEvent): void {
+	private onUsfmDocumentChanged(changeEvent: vscode.TextDocumentChangeEvent): void {
 		if (this.autoRefresh) {
             //Need to pass the document from the event into parseStuff
             this.parseStuff( changeEvent.document );

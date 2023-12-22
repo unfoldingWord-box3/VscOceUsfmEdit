@@ -17,7 +17,7 @@
         "command": "helloworld.helloWorld",
         "title": "Hello World"
       },{
-        "command": "rawTextOutline.selectLine",
+        "command": "usfmOutline.selectLine",
         "title": "Select Line",
 				"icon": {
 					"light": "resources/light/edit.svg",
@@ -27,8 +27,8 @@
     ],
     "customEditors": [
       {
-        "viewType": "tests.rawTextEditor",
-        "displayName": "Raw Text Editor",
+        "viewType": "tests.usfmEditor",
+        "displayName": "Usfm Editor",
         "selector": [
           {
             "filenamePattern": "*.txt"
@@ -41,14 +41,14 @@
         {
           "id": "tests.testTree",
           "name": "Test Tree",
-          "when": "rawTextOutlineEnabled"
+          "when": "usfmOutlineEnabled"
         }
       ]
     },
     "menus": {
       "view/item/context": [
         {
-          "command": "rawTextOutline.selectLine",
+          "command": "usfmOutline.selectLine",
           "when": "view == tests.testTree && viewItem == selectable",
 					"group": "inline"
         }

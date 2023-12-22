@@ -1,8 +1,8 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { RawTextEditorProvider } from './rawTextEditor';
-import { RawTextOutlineProvider } from './rawTextOutline';
+import { UsfmEditorProvider } from './usfmEditor';
+import { UsfmOutlineProvider } from './usfmOutline';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -24,15 +24,15 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 
-	const [rawTextEditorProviderDisposable, rawTextEditorProviderObject] = RawTextEditorProvider.register(context);
-	context.subscriptions.push( rawTextEditorProviderDisposable );
+	const [usfmEditorProviderDisposable, usfmEditorProviderObject] = UsfmEditorProvider.register(context);
+	context.subscriptions.push( usfmEditorProviderDisposable );
 
 
-	const rawTextOutlineProvider = new RawTextOutlineProvider(context,rawTextEditorProviderObject);
-	vscode.window.registerTreeDataProvider('tests.testTree', rawTextOutlineProvider);
+	const usfmOutlineProvider = new UsfmOutlineProvider(context,usfmEditorProviderObject);
+	vscode.window.registerTreeDataProvider('tests.testTree', usfmOutlineProvider);
 
-	vscode.commands.registerCommand('rawTextOutline.selectLine', (location: string) => {
-		rawTextOutlineProvider.selectLine(location);
+	vscode.commands.registerCommand('usfmOutline.selectLine', (location: string) => {
+		usfmOutlineProvider.selectLine(location);
 	});
 }
 
