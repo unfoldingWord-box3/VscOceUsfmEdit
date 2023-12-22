@@ -1,6 +1,6 @@
 {
-  "name": "helloworld",
-  "displayName": "HelloWorld",
+  "name": "usfmeditor",
+  "displayName": "UsfmEditor",
   "description": "",
   "version": "0.0.1",
   "engines": {
@@ -14,9 +14,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "helloworld.helloWorld",
-        "title": "Hello World"
-      },{
         "command": "usfmOutline.selectLine",
         "title": "Select Line",
 				"icon": {
