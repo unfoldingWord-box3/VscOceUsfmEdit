@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 	const usfmOutlineProvider = new UsfmOutlineProvider(context,usfmEditorProviderObject);
-	vscode.window.registerTreeDataProvider('tests.testTree', usfmOutlineProvider);
+	vscode.window.registerTreeDataProvider('com.lansfords.usfmOutline', usfmOutlineProvider);
 
 	vscode.commands.registerCommand('usfmOutline.selectLine', (location: string) => {
 		usfmOutlineProvider.selectLine(location);

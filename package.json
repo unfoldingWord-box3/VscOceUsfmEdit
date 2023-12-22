@@ -27,7 +27,7 @@
     ],
     "customEditors": [
       {
-        "viewType": "tests.usfmEditor",
+        "viewType": "com.lansfords.usfmEditor",
         "displayName": "Usfm Editor",
         "selector": [
           {
@@ -39,8 +39,8 @@
     "views": {
       "explorer": [
         {
-          "id": "tests.testTree",
-          "name": "Test Tree",
+          "id": "com.lansfords.usfmOutline",
+          "name": "Usfm Outline",
           "when": "usfmOutlineEnabled"
         }
       ]
@@ -49,7 +49,7 @@
       "view/item/context": [
         {
           "command": "usfmOutline.selectLine",
-          "when": "view == tests.testTree && viewItem == selectable",
+          "when": "view == com.lansfords.usfmOutline && viewItem == selectable",
 					"group": "inline"
         }
       ]

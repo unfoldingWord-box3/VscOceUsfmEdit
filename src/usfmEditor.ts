@@ -22,7 +22,7 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
         return [vscode.window.registerCustomEditorProvider(UsfmEditorProvider.viewType, provider), provider];
     }
 
-    private static readonly viewType = 'tests.usfmEditor';
+    private static readonly viewType = 'com.lansfords.usfmEditor';
 
     constructor(private readonly context: vscode.ExtensionContext) {
         
