@@ -1,4 +1,24 @@
 
+function findEdit(before, after) {
+    //First find where the text is different from the start.
+    let start = 0;
+    while (start < before.length && start < after.length && before[start] === after[start]) {
+        start++;
+    }
+    //Now find where the text is different from the end
+    let end = before.length - 1;
+    while (end >= start && (end - start) >= (before.length - after.length) && end + after.length - before.length >= 0 && before[end] === after[end + after.length - before.length]) {
+        end--;
+    }
+    //inc end because we want it to be the first char not changed, instead of the last char changed
+    end++;
+    return { start, end, newText: after.slice(start, end + after.length - before.length) };
+}
+function useEdit(before, edit) {
+    return before.slice(0, edit.start) + edit.newText + before.slice(edit.end);
+}
+
+
 (function () {
     const vscode = acquireVsCodeApi();
 

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-export interface UsfmEditorThingy {
+export interface UsfmEditorAbstraction {
     onUsfmActiveEditorChanged(callback: (e: vscode.TextDocument) => void): unknown;
     onUsfmDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void;
     selectLine( lineNumber: number ): void;
@@ -19,7 +19,7 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 
 	private autoRefresh = true;
 
-	constructor(private context: vscode.ExtensionContext, private editorProvider: UsfmEditorThingy) {
+	constructor(private context: vscode.ExtensionContext, private editorProvider: UsfmEditorAbstraction) {
 
         editorProvider.onUsfmActiveEditorChanged(e => this.onUsfmActiveEditorChanged(e)) ;
 		editorProvider.onUsfmDocumentChanged(e => this.onUsfmDocumentChanged(e));

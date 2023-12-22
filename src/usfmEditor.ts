@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { UsfmEditorThingy } from './usfmOutline';
+import { UsfmEditorAbstraction } from './usfmOutline';
 
 
 function getNonce() {
@@ -11,13 +11,36 @@ function getNonce() {
     return text;
 }
 
-export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  UsfmEditorThingy{
+export function findEdit( before: string, after: string ): { start: number, end: number, newText: string } {
+    //First find where the text is different from the start.
+    let start = 0;
+    while( start < before.length && start < after.length && before.charAt(start) === after.charAt(start) ){
+        start++;
+    }
+
+    //Now find where the text is different from the end
+    let end = before.length - 1;
+    while( end >= start && (end-start) >= (before.length-after.length) &&  end+after.length-before.length >= 0 && before[end] === after[end+after.length-before.length]){
+        end--;
+    }
+
+    //inc end because we want it to be the first char not changed, instead of the last char changed
+    end++;
+
+    return { start, end, newText: after.slice(start, end+after.length-before.length) };
+}
+
+export function useEdit( before: string, edit: { start: number, end: number, newText: string } ): string {
+    return before.slice(0, edit.start) + edit.newText + before.slice(edit.end);
+}
+
+export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  UsfmEditorAbstraction{
 
     private onUsfmDocumentChangedSet = new Set< (e: vscode.TextDocumentChangeEvent) => void >();
     private onUsfmActiveEditorChangedSet = new Set< (e: vscode.TextDocument) => void >();
     private liveWebViews = new Set<vscode.WebviewPanel>();
 
-    public static register(context: vscode.ExtensionContext): [vscode.Disposable, UsfmEditorThingy] {
+    public static register(context: vscode.ExtensionContext): [vscode.Disposable, UsfmEditorAbstraction] {
         const provider = new UsfmEditorProvider(context);
         return [vscode.window.registerCustomEditorProvider(UsfmEditorProvider.viewType, provider), provider];
     }
