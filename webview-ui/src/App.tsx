@@ -42,12 +42,48 @@ const vscodeTheme = body?.getAttribute( "data-vscode-theme-id" )
 const editorColorScheme = (vscodeTheme?.toLowerCase().includes( "light" )) ? "light" : "vs-dark";
 
 import Editor from '@monaco-editor/react';
+import { useEffect } from 'react';
+import React from 'react';
 
+interface VsCodeStub{
+  postMessage: (message: { command: string, text?: string }) => void
+}
 function App() {
-    return <>
 
-      <Editor height="80vh" width="90vh" defaultLanguage="text" theme={editorColorScheme} defaultValue="// some comment" />
-    </>
+  const vscodeRef = React.useRef<VsCodeStub | null>(null);
+
+  const [ text, setText ] = React.useState( "" );
+
+  //see if the function acquireVsCodeApi exists.
+  //Ignore if acquireVsCodeApi does not exist.
+  // @ts-expect-error acquireVsCodeApi exists in vscode.
+  if (typeof acquireVsCodeApi === 'function' && vscodeRef.current === null ) {
+    // @ts-expect-error acquireVsCodeApi exists in vscode.
+    vscodeRef.current = acquireVsCodeApi();
+  }
+
+  //Go ahead and subscribe to the plugin events.
+  useEffect(() => {
+    const messageEventListener = (e: {data: {command: string, text: string}}) => {
+      if( e.data.command === 'update' ){
+        setText( e.data.text );
+      }
+    };
+    window.addEventListener('message', messageEventListener);
+
+    return () => window.removeEventListener('message', messageEventListener);
+  }, []);
+  
+
+  useEffect( () => {
+    if ( vscodeRef.current ) {
+      vscodeRef.current?.postMessage({ command: 'ready' });
+    }
+  }, []);
+
+  return <>
+    <Editor height="80vh" width="90vh" defaultLanguage="text" theme={editorColorScheme} value={text} />
+  </>
 }
 
 

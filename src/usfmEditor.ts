@@ -130,9 +130,6 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
 
     private getHtmlForWebview(webview: vscode.Webview): string {
         // Local path to script and css for the webview
-        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
-            this.context.extensionUri, 'media', 'usfmEditor.js'));
-
         const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'reset.css'));
 
@@ -142,9 +139,6 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
         const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'usfmEditor.css'));
 
-
-        const viteLogoUri = webview.asWebviewUri(vscode.Uri.joinPath(
-            this.context.extensionUri, 'webview-ui', 'build', 'vite.svg'));
 
         const reactIndexJsUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'webview-ui', 'build', 'assets', 'index.js'));
@@ -169,7 +163,6 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
 
 
                 <meta charset="UTF-8" />
-                <link rel="icon" type="image/svg+xml" href="${viteLogoUri}" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <script type="module" crossorigin src="${reactIndexJsUri}"></script>
                 <link rel="stylesheet" crossorigin href="${reactIndexCssUri}">
@@ -178,13 +171,7 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
 
                 <h1>Usfm Editor</h1>
 
-                <textarea id="text-box"></textarea>
-
                 <div id="root"></div>
-                
-                <script src="${scriptUri}"></script>
-
-
 
             </body>
             </html>`;
