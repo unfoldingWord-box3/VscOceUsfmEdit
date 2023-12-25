@@ -10,7 +10,6 @@ interface Edit {
 }
 interface UsfmMessage{
     command: string,
-    version?: number,
     text?: string,
     edits?: Edit[]
 }
@@ -91,12 +90,27 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
             callback(document);
         });
 
-        const updateWebview = () => {
-            const updateMessage: UsfmMessage = {
-                command: 'update',
-                text: document.getText(),
-                version: document.version,
-            };
+        const updateWebview = (_e: vscode.TextDocumentChangeEvent | undefined = undefined) => {
+            let updateMessage: UsfmMessage | null = null;
+            if( _e === undefined ){
+                updateMessage = {
+                    command: 'update',
+                    text: document.getText(),
+                };
+            }else{
+                updateMessage = {
+                    command: 'edit',
+                    edits: _e.contentChanges.map( e => {
+                        return {
+                            startLineNumber: e.range.start.line,
+                            startColumn: e.range.start.character,
+                            endLineNumber: e.range.end.line,
+                            endColumn: e.range.end.character,
+                            text: e.text
+                        };
+                    })
+                };
+            }
             webviewPanel.webview.postMessage(updateMessage);
 
             // this.onUsfmActiveEditorChangedSet.forEach(callback => {
@@ -106,7 +120,7 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
 
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
-                updateWebview();
+                updateWebview(e);
                 this.onUsfmDocumentChangedSet.forEach(callback => {
                     callback(e);
                 });
@@ -126,12 +140,8 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
             switch (e.command) {
                 case 'update':
                 case 'edit':
-                    if( (e.version !== undefined &&e.version > document.version) ){
-                        this.updateTextDocument(document, e);
-                    }else{
-                        console.log( "update received with version " + e.version + " but document version is " + document.version );
-                    }
-                    console.log( "update received with version " + e.version );
+                    this.updateTextDocument(document, e);
+                    console.log( "update received" );
                     break;
                 case 'ready':
                     updateWebview();

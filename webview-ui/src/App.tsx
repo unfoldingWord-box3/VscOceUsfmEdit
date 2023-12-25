@@ -43,7 +43,7 @@ const editorColorScheme = (vscodeTheme?.toLowerCase().includes( "light" )) ? "li
 
 import Editor from '@monaco-editor/react';
 import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import React from 'react';
 
 
@@ -56,7 +56,6 @@ interface Edit {
 }
 interface UsfmMessage{
   command: string,
-  version?: number,
   text?: string,
   edits?: Edit[]
 }
@@ -64,6 +63,20 @@ interface VsCodeStub{
   postMessage: (message: UsfmMessage) => void
 }
 
+interface EditWithTime{
+  edit: Edit,
+  time: number
+}
+
+interface EditWithTimePtr{
+  current: EditWithTime[]
+}
+
+interface EditRecords{
+  waitingOutgoingRecord: EditWithTimePtr,
+  outgoingRecord: EditWithTimePtr,
+  incomingRecord: EditWithTimePtr
+}
 
  
 export default function App() {
@@ -76,16 +89,187 @@ export default function App() {
     if( value !== undefined && ev !== undefined ) {
       const edits = ev.changes.map( (change) => {
         return {
-          startLineNumber: change.range.startLineNumber,
-          startColumn: change.range.startColumn,
-          endLineNumber: change.range.endLineNumber,
-          endColumn: change.range.endColumn,
+          startLineNumber: change.range.startLineNumber -1,
+          startColumn: change.range.startColumn -1,
+          endLineNumber: change.range.endLineNumber -1,
+          endColumn: change.range.endColumn -1,
           text: change.text 
         };  
       });
-      if( vscodeRef.current )vscodeRef.current?.postMessage({ command: 'edit', edits: edits, version: ev.versionId });
+      handleOutgoingEdits( edits );
     }
   }
+
+  const editRecords = React.useRef< EditRecords >({
+    waitingOutgoingRecord: {
+      current: []
+    },
+    outgoingRecord: {
+      current: []
+    },
+    incomingRecord: {
+      current: []
+    }
+  });
+
+  const filterEditWithBuffer =( buffer: EditWithTimePtr, edits: Edit ) => {
+    //first drop edits which are over 10 seconds old
+    //buffer.current = buffer.current.filter( (bufferedEdit : EditWithTime) => Date.now() - bufferedEdit.time < 10000 );
+
+    //Now see if the edit is in there.  If it is, just remove the first one.
+    const index = buffer.current.findIndex( (bufferedEdit : EditWithTime) => {
+      return bufferedEdit.edit.startColumn === edits.startColumn &&
+        (bufferedEdit.edit.endColumn === -1 || bufferedEdit.edit.endColumn === edits.endColumn ) &&
+        bufferedEdit.edit.startLineNumber === edits.startLineNumber &&
+        (bufferedEdit.edit.endLineNumber === -1 ||bufferedEdit.edit.endLineNumber === edits.endLineNumber) &&
+        bufferedEdit.edit.text === edits.text
+    } );
+    if( index > -1 ){
+      buffer.current.splice( index, 1 );
+      return true;
+    }else{
+      return false;
+    }
+  }
+
+  const filterIncomingEdits = useCallback((edits: Edit[] ) => {
+    return edits.filter( (edit) => !filterEditWithBuffer( editRecords.current.outgoingRecord, edit ) );
+  }, [] );
+  const filterOutgoingEdits = useCallback((edits: Edit[] ) => {
+    return edits.filter( (edit) => !filterEditWithBuffer( editRecords.current.incomingRecord, edit ) );
+  },[]);
+  const recordOutgoingEdits = (edits: Edit[] ) => {
+    for( const edit of edits ){
+      editRecords.current.outgoingRecord.current.push( { edit: edit, time: Date.now() } );
+    }
+  }
+
+  const handleOutgoingEdits = useCallback((edits: Edit[] ) => {
+    if( edits.length > 0 ){
+      const filteredEdits = filterOutgoingEdits( edits );
+
+      //Now enqueue all the filtered edits if any in the waitingOutgoingRecord
+      filteredEdits.forEach( (edit) => {
+        console.log( "Filtered outgoing edit \"" + edit.text  + "\"" );
+        editRecords.current.waitingOutgoingRecord.current.push( { edit: edit, time: Date.now() } );
+      });
+      if( filteredEdits.length < edits.length ){
+        console.log( `Filtered ${edits.length - filteredEdits.length} outgoing edits` );
+        if( filteredEdits.length == 0 ){
+          console.log( "They were " );
+          edits.forEach( (edit) => {
+            console.log( "\"" + edit.text + "\"" );
+          })
+        }
+      }
+
+      //see if we can merge any of the edits in waitingOutgoingRecord.  If an edit is an insert, i.e. the end and the start are the
+      //same and it is the column right after the previous edit, then we can just merge their text and delete the previous edit.
+      //but we have to do it from the end to the beginning because otherwise it would mess up the indexes.
+      let checkIndex = editRecords.current.waitingOutgoingRecord.current.length - 1;
+      const isInsert = (edit: Edit ) => {
+        return edit.endLineNumber === edit.startLineNumber &&
+          edit.endColumn === edit.startColumn;
+      }
+      while( checkIndex >= 1 ){
+        const editB = editRecords.current.waitingOutgoingRecord.current[checkIndex];
+        const editA = editRecords.current.waitingOutgoingRecord.current[checkIndex - 1];
+
+        if( isInsert(editB.edit) && isInsert(editA.edit) && 
+          editA.edit.endLineNumber === editB.edit.startLineNumber &&
+          (editA.edit.endColumn + editA.edit.text.length) === editB.edit.startColumn ){
+            
+          //Remove editB
+          editRecords.current.waitingOutgoingRecord.current.splice( checkIndex, 1 );
+
+          console.log( "Merging \"" + editA.edit.text + "\" and \"" + editB.edit.text + "\"" );
+
+          //Add the edit to the previous edit
+          editA.edit.text = editA.edit.text + editB.edit.text;
+        }
+
+        checkIndex--;
+      }
+    }
+
+
+    // //Now if the outgoingRecord is empty, send the items in the waitingOutgoingRecord
+    // if( editRecords.current.waitingOutgoingRecord.current.length > 0 ){
+    //   //Remove old outgoingRecords.
+    //   editRecords.current.outgoingRecord.current = editRecords.current.outgoingRecord.current.filter( (bufferedEdit : EditWithTime) => Date.now() - bufferedEdit.time < 10000 );
+      
+    //   if( editRecords.current.outgoingRecord.current.length === 0 ){
+    //     const waitingEdits = editRecords.current.waitingOutgoingRecord.current;
+    //     editRecords.current.waitingOutgoingRecord.current = [];
+    //     recordOutgoingEdits( waitingEdits.map( (edit) => edit.edit ) );
+    //     console.log( `Sending outgoing ${waitingEdits.length} edits` )
+    //     waitingEdits.forEach( (edit) => {
+    //       console.log( "\"" + edit.edit.text + "\"" );
+    //     })
+    //     if( vscodeRef.current )vscodeRef.current?.postMessage({ command: 'edit', edits: waitingEdits.map( (edit) => edit.edit ) });
+    //   }else{
+    //     console.log( "Waiting on previous outgoing" );
+    //     editRecords.current.outgoingRecord.current.forEach( (bufferedEdit : EditWithTime) => {
+    //       console.log( "\"" + bufferedEdit.edit.text + "\"" );
+    //     })
+    //   }
+    // }else{
+    //   console.log( "No edits to send" );
+    // }
+
+    //If the outgoingRecord is empty then send the first item in waitingOutgoingRecord.
+    if( editRecords.current.waitingOutgoingRecord.current.length > 0 ){
+      //Remove old outgoingRecords.
+      editRecords.current.outgoingRecord.current = editRecords.current.outgoingRecord.current.filter( (bufferedEdit : EditWithTime) => Date.now() - bufferedEdit.time < 20000 );
+
+      if( editRecords.current.outgoingRecord.current.length === 0 ){
+        const poppedFirstWaitingEdit = editRecords.current.waitingOutgoingRecord.current.shift();
+
+        if( poppedFirstWaitingEdit !== undefined ){
+          console.log( "Sending outgoing edit \"" + poppedFirstWaitingEdit.edit.text + "\".  The queue has " + editRecords.current.waitingOutgoingRecord.current.length + " items remaining" );
+          recordOutgoingEdits( [poppedFirstWaitingEdit.edit] );
+          if( vscodeRef.current )vscodeRef.current?.postMessage({ command: 'edit', edits: [poppedFirstWaitingEdit.edit] });
+        }
+      }else{
+        console.log( "Waiting on previous outgoing" );
+        editRecords.current.outgoingRecord.current.forEach( (bufferedEdit : EditWithTime) => {
+          console.log( "\"" + bufferedEdit.edit.text + "\"" );
+        })
+      }
+    }else{
+      console.log( "No edits to send" );
+    }
+
+  },[filterOutgoingEdits]);
+
+  const recordIncomingEdits = (edits: Edit[] ) => {
+    for( const edit of edits ){
+      editRecords.current.incomingRecord.current.push( { edit: edit, time: Date.now() } );
+    }
+  }
+  const recordIncomingUpdate = (text: string) => {
+    editRecords.current.incomingRecord.current.push( {
+      edit: {
+        text: text,
+        startLineNumber: 0,
+        startColumn: 0,
+        endLineNumber: -1,
+        endColumn: -1
+      },
+      time: Date.now()
+    });
+  }
+
+  const filterIncomingUpdate = useCallback((text: string) => {
+    const result = filterEditWithBuffer( editRecords.current.outgoingRecord, {
+      text: text,
+      startLineNumber: 0,
+      startColumn: 0,
+      endLineNumber: -1,
+      endColumn: -1
+    });
+    return result;
+  },[]);
 
   const handleEditorMount : OnMount = (editor,_monica) => {
     editorRef.current = editor;
@@ -107,15 +291,24 @@ export default function App() {
   useEffect(() => {
     const messageEventListener = (e: {data: UsfmMessage}) => {
       if( e.data.command === 'update' ){
-        console.log( "Received update with version " + e.data.version  );
         if( editorRef.current !== null ){
           const model: editor.ITextModel | null = editorRef.current.getModel() as editor.ITextModel | null;
           if( model !== null ){
-            if( e.data.version !== undefined && e.data.text !== undefined && model.getVersionId() < e.data.version ){
-              console.log( "Model had older version " + model.getVersionId() + " and received version " + e.data.version + "" );
-              model.setValue(e.data.text);
+            if( e.data.text !== undefined ){
+              if( !filterIncomingUpdate( e.data.text ) ){
+                //make sure the text is actually different.
+                if( model.getValue() !== e.data.text ){
+                  recordIncomingUpdate( e.data.text );
+                  //console.log( "Used update \"" + e.data.text + "\"" );
+                  model.setValue(e.data.text);
+                }else{
+                  console.log( "Text is the same" );
+                }
+              }else{
+                console.log( "Filtered update" );
+              }
             }else{
-              console.log( "Model had newer version " + model.getVersionId() + " and received version " + e.data.version + "" );
+              console.log( "Text is undefined" );
             }
           }else{
             console.log( "Model is null" );
@@ -127,22 +320,43 @@ export default function App() {
         if( editorRef.current !== null ){
           const model: editor.ITextModel | null = editorRef.current.getModel() as editor.ITextModel | null;
           if( model !== null ){
-            if( e.data.version !== undefined && e.data.edits !== undefined && model.getVersionId() < e.data.version ){
-              model.pushEditOperations(null, e.data.edits.map( (edit) => {
-                return {
-                  range: new monaco.Range(edit.startLineNumber, edit.startColumn, edit.endLineNumber, edit.endColumn),
-                  text: edit.text
-                };
-              }),()=>[]);
+            if( e.data.edits !== undefined ){
+              const incomingEdits = filterIncomingEdits( e.data.edits );
+              if( incomingEdits.length > 0 ){
+                recordIncomingEdits( incomingEdits );
+                model.pushEditOperations(null, incomingEdits.map( (edit) => {
+                  console.log( "Used edits" );
+                  incomingEdits.forEach( (edit) => {
+                    console.log( "\"" + edit.text + "\"" );
+                  })
+                  return {
+                    range: new monaco.Range(edit.startLineNumber + 1, edit.startColumn + 1, edit.endLineNumber + 1, edit.endColumn + 1),
+                    text: edit.text
+                  };
+                }),()=>[]);
+              }else{
+                console.log( "Filtered edit" );
+                incomingEdits.forEach( (edit) => {
+                  console.log( "\"" + edit.text + "\"" );
+                })
+              }
+            }else{
+              console.log( "Edits are undefined" );
             }
+          }else{
+            console.log( "Model is null" );
           }
+        }else{
+          console.log( "Editor is null" );
         }
       }
+      //Let the outgoing edits check if they need to go again.
+      handleOutgoingEdits( [] );
     };
     window.addEventListener('message', messageEventListener);
 
     return () => window.removeEventListener('message', messageEventListener);
-  }, []);
+  }, [filterIncomingEdits, filterIncomingUpdate, handleOutgoingEdits]);
   
 
   return <>
