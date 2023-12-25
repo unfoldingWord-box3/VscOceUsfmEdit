@@ -80,7 +80,8 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
         const updateWebview = () => {
             webviewPanel.webview.postMessage({
                 command: 'update',
-                text: document.getText()
+                text: document.getText(),
+                version: document.version,
             });
             // this.onUsfmActiveEditorChangedSet.forEach(callback => {
             //     callback(document);
@@ -108,7 +109,12 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
         const messageSubscription = webviewPanel.webview.onDidReceiveMessage(e => {
             switch (e.command) {
                 case 'update':
-                    this.updateTextDocument(document, e.text);
+                    if( e.version > document.version || e.text !== document.getText() ){
+                        this.updateTextDocument(document, e.text, e.version);
+                    }else{
+                        console.log( "update received with version " + e.version + " but document version is " + document.version );
+                    }
+                    console.log( "update received with version " + e.version );
                     break;
                 case 'ready':
                     updateWebview();
@@ -178,7 +184,7 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
     }
 
 
-    private updateTextDocument(document: vscode.TextDocument, text: any) {
+    private updateTextDocument(document: vscode.TextDocument, text: string, version: number) {
 
         if( document.isClosed ) { return; }
         if( text === document.getText() ) { return; }

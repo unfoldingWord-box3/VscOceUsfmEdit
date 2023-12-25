@@ -42,17 +42,32 @@ const vscodeTheme = body?.getAttribute( "data-vscode-theme-id" )
 const editorColorScheme = (vscodeTheme?.toLowerCase().includes( "light" )) ? "light" : "vs-dark";
 
 import Editor from '@monaco-editor/react';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import React from 'react';
 
 interface VsCodeStub{
-  postMessage: (message: { command: string, text?: string }) => void
+  postMessage: (message: { command: string, text?: string, version?: number }) => void
 }
-function App() {
+export default function App() {
 
   const vscodeRef = React.useRef<VsCodeStub | null>(null);
 
-  const [ text, setText ] = React.useState( "" );
+
+  const [ textState, _setTextState ] = React.useState<{text: string, version: number}>( {text:"",version:0} );
+  
+
+
+  const setTextState = useCallback( (newState: { text: string, version: number }) => {
+    if( newState.text === textState.text ){
+      console.log( "Ignoring changes because text is the same" );
+    }else if( newState.version < textState.version ){
+      console.log( "Ignoring changes because version is lower " + newState.version + " <= " + textState.version );
+    }else{
+      console.log( "Received changes because version is higher " + newState.version + " > " + textState.version );
+      _setTextState( newState );
+    }
+  },[textState]);
+
 
   //see if the function acquireVsCodeApi exists.
   //Ignore if acquireVsCodeApi does not exist.
@@ -64,15 +79,15 @@ function App() {
 
   //Go ahead and subscribe to the plugin events.
   useEffect(() => {
-    const messageEventListener = (e: {data: {command: string, text: string}}) => {
+    const messageEventListener = (e: {data: {command: string, text: string, version: number}}) => {
       if( e.data.command === 'update' ){
-        setText( e.data.text );
+        setTextState( { text:e.data.text, version:e.data.version} );
       }
     };
     window.addEventListener('message', messageEventListener);
 
     return () => window.removeEventListener('message', messageEventListener);
-  }, []);
+  }, [setTextState]);
   
 
   useEffect( () => {
@@ -81,39 +96,20 @@ function App() {
     }
   }, []);
 
+  const handleEditorChange = (value: string | undefined, _event: unknown ) => {
+    if( value !== undefined && value !== textState.text ){
+      const newVersion = textState.version; //keep the old version the document itself will send us a new version.
+      setTextState( {text:value, version: newVersion} );
+      if( vscodeRef.current ) vscodeRef.current?.postMessage({ command: 'update', text: value, version: newVersion });
+    }
+  }
+
   return <>
-    <Editor height="80vh" width="90vh" defaultLanguage="text" theme={editorColorScheme} value={text} />
+    <Editor 
+    height="80vh" width="90vh" defaultLanguage="text" 
+    theme={editorColorScheme} 
+    value={textState.text} 
+    onChange={handleEditorChange} 
+    />
   </>
 }
-
-
-// function App() {
-//   const [count, setCount] = useState(0)
-
-//   return (
-//     <>
-//       <div>
-//         <a href="https://vitejs.dev" target="_blank">
-//           <img src={viteLogo} className="logo" alt="Vite logo" />
-//         </a>
-//         <a href="https://react.dev" target="_blank">
-//           <img src={reactLogo} className="logo react" alt="React logo" />
-//         </a>
-//       </div>
-//       <h1>Vite + React</h1>
-//       <div className="card">
-//         <button onClick={() => setCount((count) => count + 1)}>
-//           count is {count}
-//         </button>
-//         <p>
-//           Edit <code>src/App.tsx</code> and save to test HMR
-//         </p>
-//       </div>
-//       <p className="read-the-docs">
-//         Click on the Vite and React logos to learn more
-//       </p>
-//     </>
-//   )
-// }
-
-export default App
