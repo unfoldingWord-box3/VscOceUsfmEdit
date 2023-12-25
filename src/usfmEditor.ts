@@ -1,6 +1,20 @@
 import * as vscode from 'vscode';
 import { UsfmEditorAbstraction } from './usfmOutline';
 
+interface Edit {
+    text: string,
+    startLineNumber: number,
+    startColumn: number,
+    endLineNumber: number,
+    endColumn: number,
+}
+interface UsfmMessage{
+    command: string,
+    version?: number,
+    text?: string,
+    edits?: Edit[]
+}
+
 export function findEdit( before: string, after: string ): { start: number, end: number, newText: string } {
     //First find where the text is different from the start.
     let start = 0;
@@ -78,11 +92,13 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
         });
 
         const updateWebview = () => {
-            webviewPanel.webview.postMessage({
+            const updateMessage: UsfmMessage = {
                 command: 'update',
                 text: document.getText(),
                 version: document.version,
-            });
+            };
+            webviewPanel.webview.postMessage(updateMessage);
+
             // this.onUsfmActiveEditorChangedSet.forEach(callback => {
             //     callback(document);
             // });
@@ -106,11 +122,12 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
         //     }
         // });
         
-        const messageSubscription = webviewPanel.webview.onDidReceiveMessage(e => {
+        const messageSubscription = webviewPanel.webview.onDidReceiveMessage((e: UsfmMessage) => {
             switch (e.command) {
                 case 'update':
-                    if( e.version > document.version || e.text !== document.getText() ){
-                        this.updateTextDocument(document, e.text, e.version);
+                case 'edit':
+                    if( (e.version !== undefined &&e.version > document.version) ){
+                        this.updateTextDocument(document, e);
                     }else{
                         console.log( "update received with version " + e.version + " but document version is " + document.version );
                     }
@@ -184,20 +201,28 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
     }
 
 
-    private updateTextDocument(document: vscode.TextDocument, text: string, version: number) {
-
+    private updateTextDocument(document: vscode.TextDocument, e: UsfmMessage) {
         if( document.isClosed ) { return; }
-        if( text === document.getText() ) { return; }
 
         const edit = new vscode.WorkspaceEdit();
-
-        // Just replace the entire document every time for this example extension.
-        // A more complete extension should compute minimal edits instead.
-        edit.replace(
-            document.uri,
-            new vscode.Range(0, 0, document.lineCount, 0),
-            text);
-
+        if( e.command === "update" ) {
+            if( e.text === undefined ) { return; }
+            if( e.text === document.getText() ) { return; }
+            edit.replace(
+                document.uri,
+                new vscode.Range(0, 0, document.lineCount, 0),
+                e.text);    
+        }else if( e.command === "edit" ){
+            if( e.edits === undefined ) { return; }
+            if( e.edits.length === 0 ) { return; }
+            e.edits.forEach( e => {
+                edit.replace(
+                    document.uri,
+                    new vscode.Range(e.startLineNumber, e.startColumn, e.endLineNumber, e.endColumn),
+                    e.text);
+            });
+        }
+        
         return vscode.workspace.applyEdit(edit);
     }
 }

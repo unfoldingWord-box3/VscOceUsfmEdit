@@ -6,7 +6,7 @@ import './App.css'
 
 //This code was given as an example for using Monica with Vite.  I am not including it until I run into a problem that will tell me why.
 //it is needed for the editor.
-import { loader } from '@monaco-editor/react';
+import { OnChange, OnMount, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
@@ -42,32 +42,58 @@ const vscodeTheme = body?.getAttribute( "data-vscode-theme-id" )
 const editorColorScheme = (vscodeTheme?.toLowerCase().includes( "light" )) ? "light" : "vs-dark";
 
 import Editor from '@monaco-editor/react';
-import { useCallback, useEffect } from 'react';
+import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
+import { useEffect } from 'react';
 import React from 'react';
 
-interface VsCodeStub{
-  postMessage: (message: { command: string, text?: string, version?: number }) => void
+
+interface Edit {
+  text: string,
+  startLineNumber: number,
+  startColumn: number,
+  endLineNumber: number,
+  endColumn: number,
 }
+interface UsfmMessage{
+  command: string,
+  version?: number,
+  text?: string,
+  edits?: Edit[]
+}
+interface VsCodeStub{
+  postMessage: (message: UsfmMessage) => void
+}
+
+
+ 
 export default function App() {
 
   const vscodeRef = React.useRef<VsCodeStub | null>(null);
 
+  const editorRef = React.useRef<editor.IEditor | null>(null);
 
-  const [ textState, _setTextState ] = React.useState<{text: string, version: number}>( {text:"",version:0} );
-  
-
-
-  const setTextState = useCallback( (newState: { text: string, version: number }) => {
-    if( newState.text === textState.text ){
-      console.log( "Ignoring changes because text is the same" );
-    }else if( newState.version < textState.version ){
-      console.log( "Ignoring changes because version is lower " + newState.version + " <= " + textState.version );
-    }else{
-      console.log( "Received changes because version is higher " + newState.version + " > " + textState.version );
-      _setTextState( newState );
+  const handleEditorChange : OnChange = (value,ev) => {
+    if( value !== undefined && ev !== undefined ) {
+      const edits = ev.changes.map( (change) => {
+        return {
+          startLineNumber: change.range.startLineNumber,
+          startColumn: change.range.startColumn,
+          endLineNumber: change.range.endLineNumber,
+          endColumn: change.range.endColumn,
+          text: change.text 
+        };  
+      });
+      if( vscodeRef.current )vscodeRef.current?.postMessage({ command: 'edit', edits: edits, version: ev.versionId });
     }
-  },[textState]);
+  }
 
+  const handleEditorMount : OnMount = (editor,_monica) => {
+    editorRef.current = editor;
+
+    if ( vscodeRef.current ) {
+      vscodeRef.current?.postMessage({ command: 'ready' });
+    }
+  }
 
   //see if the function acquireVsCodeApi exists.
   //Ignore if acquireVsCodeApi does not exist.
@@ -79,37 +105,52 @@ export default function App() {
 
   //Go ahead and subscribe to the plugin events.
   useEffect(() => {
-    const messageEventListener = (e: {data: {command: string, text: string, version: number}}) => {
+    const messageEventListener = (e: {data: UsfmMessage}) => {
       if( e.data.command === 'update' ){
-        setTextState( { text:e.data.text, version:e.data.version} );
+        console.log( "Received update with version " + e.data.version  );
+        if( editorRef.current !== null ){
+          const model: editor.ITextModel | null = editorRef.current.getModel() as editor.ITextModel | null;
+          if( model !== null ){
+            if( e.data.version !== undefined && e.data.text !== undefined && model.getVersionId() < e.data.version ){
+              console.log( "Model had older version " + model.getVersionId() + " and received version " + e.data.version + "" );
+              model.setValue(e.data.text);
+            }else{
+              console.log( "Model had newer version " + model.getVersionId() + " and received version " + e.data.version + "" );
+            }
+          }else{
+            console.log( "Model is null" );
+          }
+        }else{
+          console.log( "Editor is null" );
+        }
+      }else if( e.data.command === 'edit' ){
+        if( editorRef.current !== null ){
+          const model: editor.ITextModel | null = editorRef.current.getModel() as editor.ITextModel | null;
+          if( model !== null ){
+            if( e.data.version !== undefined && e.data.edits !== undefined && model.getVersionId() < e.data.version ){
+              model.pushEditOperations(null, e.data.edits.map( (edit) => {
+                return {
+                  range: new monaco.Range(edit.startLineNumber, edit.startColumn, edit.endLineNumber, edit.endColumn),
+                  text: edit.text
+                };
+              }),()=>[]);
+            }
+          }
+        }
       }
     };
     window.addEventListener('message', messageEventListener);
 
     return () => window.removeEventListener('message', messageEventListener);
-  }, [setTextState]);
-  
-
-  useEffect( () => {
-    if ( vscodeRef.current ) {
-      vscodeRef.current?.postMessage({ command: 'ready' });
-    }
   }, []);
-
-  const handleEditorChange = (value: string | undefined, _event: unknown ) => {
-    if( value !== undefined && value !== textState.text ){
-      const newVersion = textState.version; //keep the old version the document itself will send us a new version.
-      setTextState( {text:value, version: newVersion} );
-      if( vscodeRef.current ) vscodeRef.current?.postMessage({ command: 'update', text: value, version: newVersion });
-    }
-  }
+  
 
   return <>
     <Editor 
     height="80vh" width="90vh" defaultLanguage="text" 
     theme={editorColorScheme} 
-    value={textState.text} 
     onChange={handleEditorChange} 
+    onMount={handleEditorMount}
     />
   </>
 }
