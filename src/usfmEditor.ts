@@ -1,17 +1,19 @@
 import * as vscode from 'vscode';
 import { UsfmEditorAbstraction } from './usfmOutline';
 
-interface Edit {
-    text: string,
-    startLineNumber: number,
-    startColumn: number,
-    endLineNumber: number,
-    endColumn: number,
+interface DirtyDocumentFormat{
+    strippedUsfm: {
+        version: number,
+        text: string
+    },
+    alignmentData: {
+        version: number,
+        //TODO: Add more here
+    }
 }
 interface UsfmMessage{
     command: string,
-    text?: string,
-    edits?: Edit[]
+    content?: DirtyDocumentFormat
 }
 
 export function findEdit( before: string, after: string ): { start: number, end: number, newText: string } {
@@ -90,37 +92,19 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
             callback(document);
         });
 
-        const updateWebview = (_e: vscode.TextDocumentChangeEvent | undefined = undefined) => {
-            let updateMessage: UsfmMessage | null = null;
-            if( _e === undefined ){
-                updateMessage = {
-                    command: 'update',
-                    text: document.getText(),
-                };
-            }else{
-                updateMessage = {
-                    command: 'edit',
-                    edits: _e.contentChanges.map( e => {
-                        return {
-                            startLineNumber: e.range.start.line,
-                            startColumn: e.range.start.character,
-                            endLineNumber: e.range.end.line,
-                            endColumn: e.range.end.character,
-                            text: e.text
-                        };
-                    })
-                };
-            }
-            webviewPanel.webview.postMessage(updateMessage);
 
-            // this.onUsfmActiveEditorChangedSet.forEach(callback => {
-            //     callback(document);
-            // });
+
+        const updateWebview = () => {
+            const updateMessage: UsfmMessage = {
+                command: 'sync',
+                content: getDocContent()
+            };
+            webviewPanel.webview.postMessage(updateMessage);
         };
 
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
-                updateWebview(e);
+                updateWebview();
                 this.onUsfmDocumentChangedSet.forEach(callback => {
                     callback(e);
                 });
@@ -138,9 +122,8 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
         
         const messageSubscription = webviewPanel.webview.onDidReceiveMessage((e: UsfmMessage) => {
             switch (e.command) {
-                case 'update':
-                case 'edit':
-                    this.updateTextDocument(document, e);
+                case 'sync':
+                    updateTextDocument(e);
                     console.log( "update received" );
                     break;
                 case 'ready':
@@ -148,6 +131,68 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
                     break;
             }
         });
+
+
+        const getDocContent = () : DirtyDocumentFormat => {
+            //check if the document is dirty.
+            const isDirty = document.isDirty;
+
+            //if the document is dirty then it is just json of the DirtyDocumentFormat,
+            //otherwise we need to construct it.
+            const result: DirtyDocumentFormat = (isDirty) ? 
+                JSON.parse(document.getText()) :
+                {
+                    strippedUsfm: {
+                        version: 0,
+                        text: document.getText()
+                    },
+                    alignmentData: {
+                        version: 0
+                    }
+                };
+            return result;
+        };
+
+
+        const updateTextDocument = (data: UsfmMessage) => {
+            if( document.isClosed ) { return; }
+
+            if( data.command === "sync" && data.content ){
+                let doUpdateState = false;
+                let doSendReply = false;
+                let newDocumentData = getDocContent();
+                if( data.content.alignmentData.version > newDocumentData.alignmentData.version ){
+                    doUpdateState = true;
+                    newDocumentData = {
+                        ...newDocumentData,
+                        alignmentData: data.content.alignmentData
+                    };
+                }else if( data.content.alignmentData.version < newDocumentData.alignmentData.version ){
+                    doSendReply = true;
+                }
+                if( data.content.strippedUsfm.version > newDocumentData.strippedUsfm.version ){
+                    doUpdateState = true;
+                    newDocumentData = {
+                        ...newDocumentData,
+                        strippedUsfm: data.content.strippedUsfm
+                    };
+                }else if( data.content.strippedUsfm.version < newDocumentData.strippedUsfm.version ){
+                    doSendReply = true;
+                }
+
+                if( doUpdateState ){
+                    const edit = new vscode.WorkspaceEdit();
+                    edit.replace(
+                        document.uri,
+                        new vscode.Range(0, 0, document.lineCount, 0),
+                        JSON.stringify(newDocumentData));
+                    vscode.workspace.applyEdit(edit);
+                }
+                if( doSendReply ){
+                    updateWebview();
+                }
+            }
+        };
 
         this.liveWebViews.add(webviewPanel);
         
@@ -211,29 +256,5 @@ export class UsfmEditorProvider implements vscode.CustomTextEditorProvider,  Usf
     }
 
 
-    private updateTextDocument(document: vscode.TextDocument, e: UsfmMessage) {
-        if( document.isClosed ) { return; }
-
-        const edit = new vscode.WorkspaceEdit();
-        if( e.command === "update" ) {
-            if( e.text === undefined ) { return; }
-            if( e.text === document.getText() ) { return; }
-            edit.replace(
-                document.uri,
-                new vscode.Range(0, 0, document.lineCount, 0),
-                e.text);    
-        }else if( e.command === "edit" ){
-            if( e.edits === undefined ) { return; }
-            if( e.edits.length === 0 ) { return; }
-            e.edits.forEach( e => {
-                edit.replace(
-                    document.uri,
-                    new vscode.Range(e.startLineNumber, e.startColumn, e.endLineNumber, e.endColumn),
-                    e.text);
-            });
-        }
-        
-        return vscode.workspace.applyEdit(edit);
-    }
 }
 
