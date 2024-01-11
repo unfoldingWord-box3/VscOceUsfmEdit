@@ -1,9 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+export interface UsfmDocumentAbstraction extends vscode.CustomDocument{
+    getStrippedUsfmText(): string;
+}
 export interface UsfmEditorAbstraction {
-    onUsfmActiveEditorChanged(callback: (e: vscode.TextDocument) => void): unknown;
-    onUsfmDocumentChanged(callback: (e: vscode.TextDocumentChangeEvent) => void): void;
+    onUsfmActiveEditorChanged: vscode.Event<UsfmDocumentAbstraction>;
+    onUsfmDocumentChanged(callback: (e: vscode.CustomDocumentEditEvent<UsfmDocumentAbstraction>) => void): void;
+    //onUsfmDocumentChanged:  vscode.CustomDocumentEditEvent<UsfmDocumentAbstraction>;
+    //onUsfmDocumentChanged:  vscode.Event<UsfmDocumentAbstraction>;
+    //onUsfmDocumentChanged: vscode.CustomDocumentEditEvent<UsfmDocumentAbstraction>;
     selectLine( lineNumber: number ): void;
 }
 
@@ -33,7 +39,7 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 
 	}
 
-	refresh(location?: string, document?: vscode.TextDocument): void {
+	refresh(location?: string, document?: UsfmDocumentAbstraction): void {
         //This gets called for example from when the active editor changes.
 		this.parseStuff( document );
 		this._onDidChangeTreeData.fire(location);
@@ -64,7 +70,7 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 	// 	});
 	// }
 
-	private onUsfmActiveEditorChanged( document?: vscode.TextDocument): void {
+	private onUsfmActiveEditorChanged( document?: UsfmDocumentAbstraction): void {
         if (document) {
             var enabled = document !== undefined;
             vscode.commands.executeCommand('setContext', 'usfmOutlineEnabled', enabled);
@@ -77,17 +83,17 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 
 	}
 
-	private onUsfmDocumentChanged(changeEvent: vscode.TextDocumentChangeEvent): void {
+	private onUsfmDocumentChanged(e: vscode.CustomDocumentEditEvent<UsfmDocumentAbstraction>): void {
 		if (this.autoRefresh) {
             //Need to pass the document from the event into parseStuff
-            this.parseStuff( changeEvent.document );
+            this.parseStuff( e.document );
             this._onDidChangeTreeData.fire(undefined);
 		}
 	}
 
-	private parseStuff( document?: vscode.TextDocument ): void {
+	private parseStuff( document?: UsfmDocumentAbstraction ): void {
         if( document ){
-            this.lines = document.getText().split('\n');
+            this.lines = document.getStrippedUsfmText().split('\n');
         }
 	}
 

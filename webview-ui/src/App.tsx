@@ -59,7 +59,7 @@ import { useEffect } from 'react';
 import React from 'react';
 
 
-interface DirtyDocumentFormat{
+interface InternalUsfmJsonFormat{
   strippedUsfm: {
       version: number,
       text: string
@@ -70,8 +70,10 @@ interface DirtyDocumentFormat{
   }
 }
 interface UsfmMessage{
-  command: string,
-  content?: DirtyDocumentFormat
+    command: string,
+    content?: InternalUsfmJsonFormat,
+    requestId?: number,
+    lineNumber?: number,
 }
 interface VsCodeStub{
   postMessage: (message: UsfmMessage) => void
@@ -85,7 +87,7 @@ export default function App() {
   const editorRef = React.useRef<editor.IEditor | null>(null);
 
 
-  const documentDataRef = React.useRef<DirtyDocumentFormat>({
+  const documentDataRef = React.useRef<InternalUsfmJsonFormat>({
     strippedUsfm: {
       version: -1,
       text: ""
@@ -96,7 +98,7 @@ export default function App() {
     }
   });
 
-  const setDocumentData = ( newDocumentData : DirtyDocumentFormat ) => {
+  const setDocumentData = ( newDocumentData : InternalUsfmJsonFormat ) => {
     documentDataRef.current = newDocumentData;
   }
 
@@ -138,7 +140,7 @@ export default function App() {
   const handleEditorChangeDebounced = ( value : string | undefined, _ev : editor.IModelContentChangedEvent ) : void => {
     if( value !== undefined ){
       if( value !== documentDataRef.current.strippedUsfm.text ){
-        const newDocumentData : DirtyDocumentFormat = {
+        const newDocumentData : InternalUsfmJsonFormat = {
           ...documentDataRef.current,
           strippedUsfm: {
             version: documentDataRef.current.strippedUsfm.version + 1 + Math.random(),
@@ -222,6 +224,16 @@ export default function App() {
           console.log( "sending reply because the webview has a newer version" );
           if( vscodeRef.current )vscodeRef.current?.postMessage({ command: 'sync', content: newDocumentData });
         }
+      }else if( e.data.command === 'flushUpdates' ){
+        if( vscodeRef.current ){
+          //First we sync our data.
+          vscodeRef.current?.postMessage({ command: 'sync', content: documentDataRef.current });
+          //and then we respond with the id to indicate that we have done so.
+          vscodeRef.current?.postMessage({ command: 'response', requestId: e.data.requestId });
+        }
+      }else if( e.data.command === 'selectLine' ){
+        const lineNumber = e.data.lineNumber!;
+        editorRef.current?.revealLineInCenter(lineNumber);
       }
     };
     window.addEventListener('message', messageEventListener);
