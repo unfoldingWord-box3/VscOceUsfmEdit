@@ -27,6 +27,10 @@ export function disposeAll(disposables: vscode.Disposable[]): void {
 	}
 }
 
+function deepCopy(obj: any): any {
+    return JSON.parse(JSON.stringify(obj));
+}
+
 export abstract class Disposable {
 	private _isDisposed = false;
 
@@ -114,6 +118,9 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
     private readonly _uri: vscode.Uri;
     private _documentData: InternalUsfmJsonFormat;
 
+    //This way we can tell if the document is dirty or not
+    private _savedDocumentData: InternalUsfmJsonFormat | undefined;
+
     private constructor(
         uri: vscode.Uri,
         documentData: InternalUsfmJsonFormat,
@@ -122,6 +129,26 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
         super();
         this._uri = uri;
         this._documentData = documentData;
+
+        //register a hook which notifies us if another program has modified our file.
+        const changeWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._uri, "*"));
+        this._register(changeWatcher);
+        changeWatcher.onDidChange(() => {
+            console.log( "changeWatcher onDidChange " + this._uri.toString() );
+            if( !this.isClosed && !this.isDirty ){
+                this.revert( new vscode.CancellationTokenSource().token );
+            }
+        });
+
+
+        this._savedDocumentData = deepCopy(this._documentData);
+    }
+
+    public get isDirty(): boolean {
+        if( this._savedDocumentData === undefined ){ return true; }
+        if( this._documentData.alignmentData.version !== this._savedDocumentData.alignmentData.version ){ return true; }
+        if( this._documentData.strippedUsfm.version !== this._savedDocumentData.strippedUsfm.version ){ return true; }
+        return false;
     }
 
     public get uri(): vscode.Uri {
@@ -151,6 +178,8 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
 	 * This happens when all editors for it have been closed.
 	 */
     dispose(): void {
+        console.log( "Disposing document " + this._uri.toString() );
+
         this._onDidDispose.fire();
         super.dispose();
         this.isClosed = true;
@@ -187,7 +216,7 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
 		const lastDocumentState = this._documentData;
         this._documentData = newContent;
 
-        console.log( "made edit" );
+        console.log( "making edit on version " + this._documentData.strippedUsfm.version );
 
 		this._onDidChange.fire({
 			label: 'onDidChangeLabel', //<-- Not sure where this comes through.
@@ -196,8 +225,10 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
 
                 const replacedData = this._documentData;
                 this._documentData = { ...lastDocumentState };
-                this._documentData.alignmentData.version = this._documentData.alignmentData.version + 1 + Math.random();
-                this._documentData.strippedUsfm.version = this._documentData.strippedUsfm.version + 1 + Math.random();
+
+                this._documentData.alignmentData.version = replacedData.alignmentData.version + 1 + Math.random();
+                this._documentData.strippedUsfm.version = replacedData.strippedUsfm.version + 1 + Math.random();
+                console.log( "Undoing edit now on version " + this._documentData.strippedUsfm.version );
 				this._onDidChangeDocument.fire({
 					content: this._documentData,
 				});
@@ -207,8 +238,9 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
 
                 const replacedData = this._documentData;
                 this._documentData = { ...newContent };
-                this._documentData.alignmentData.version = this._documentData.alignmentData.version + 1 + Math.random();
-                this._documentData.strippedUsfm.version = this._documentData.strippedUsfm.version + 1 + Math.random();
+                this._documentData.alignmentData.version = replacedData.alignmentData.version + 1 + Math.random();
+                this._documentData.strippedUsfm.version = replacedData.strippedUsfm.version + 1 + Math.random();
+                console.log( "Redoing edit now on version " + this._documentData.strippedUsfm.version );
 				this._onDidChangeDocument.fire({
 					content: this._documentData,
 				});
@@ -258,6 +290,9 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
             this._onDidChangeDocument.fire({
                 content: this._documentData
             });
+
+            //update the saved data so isDirty resets.
+            this._savedDocumentData = deepCopy(this._documentData);
         }else{
 
             //if it is a backup just dump the json data.
@@ -289,6 +324,10 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
 		this._onDidChangeDocument.fire({
 			content: this._documentData
 		});
+
+
+        //update the saved data so isDirty resets.
+        this._savedDocumentData = deepCopy(this._documentData);
 	}
 
 	/**
@@ -394,9 +433,6 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 redo: () => {},
                 ...e
             };
-            
-
-            this._onDidChangeCustomDocument.fire(editEvent);
 		}));
 
 		document.onDidDispose(() => disposeAll(listeners));
