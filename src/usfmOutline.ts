@@ -7,10 +7,15 @@ export interface UsfmDocumentAbstraction extends vscode.CustomDocument{
 export interface UsfmEditorAbstraction {
     onUsfmActiveEditorChanged: vscode.Event<UsfmDocumentAbstraction>;
     onUsfmDocumentChanged(callback: (e: vscode.CustomDocumentEditEvent<UsfmDocumentAbstraction>) => void): void;
-    //onUsfmDocumentChanged:  vscode.CustomDocumentEditEvent<UsfmDocumentAbstraction>;
-    //onUsfmDocumentChanged:  vscode.Event<UsfmDocumentAbstraction>;
-    //onUsfmDocumentChanged: vscode.CustomDocumentEditEvent<UsfmDocumentAbstraction>;
-    selectLine( lineNumber: number ): void;
+    selectReference( reference: string ): void;
+}
+
+interface VerseIndex{
+    number: string,
+}
+interface ChapterIndex{
+    number: string,
+    verses: VerseIndex[],
 }
 
 export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
@@ -20,8 +25,9 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 
     
     //This gets updated whenever the contests get refreshed.
+    private index: ChapterIndex[] = [];
 	//private editor: vscode.TextEditor | undefined;
-	private lines: string[] | undefined;
+	//private lines: string[] | undefined;
 
 	private autoRefresh = true;
 
@@ -93,71 +99,91 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 
 	private parseStuff( document?: UsfmDocumentAbstraction ): void {
         if( document ){
-            this.lines = document.getStrippedUsfmText().split('\n');
+            var strippedUsfm = document.getStrippedUsfmText();
+            //chapter finder regex
+            const chapterFinderRegex = /\\c ([0-9]+)/g;
+            const verseFinderRegex = /\\v ([0-9]+)/g;
+
+            this.index = [];
+            let currentChapter: ChapterIndex | null = null;
+
+            let chapterMatch = chapterFinderRegex.exec(strippedUsfm);
+            let verseMatch = verseFinderRegex.exec(strippedUsfm);
+
+            while( chapterMatch !== null || verseMatch !== null ){
+                if( chapterMatch !== null && (verseMatch === null || chapterMatch.index < verseMatch.index)){
+                    currentChapter = {
+                        number: chapterMatch[1],
+                        verses: []
+                    };
+                    this.index.push(currentChapter);
+                    chapterMatch = chapterFinderRegex.exec(strippedUsfm);
+                }else if( verseMatch !== null && currentChapter !== null ){
+                    currentChapter.verses.push({
+                        number:verseMatch[1],
+                    });
+                    verseMatch = verseFinderRegex.exec(strippedUsfm);
+                }
+            }
+
         }
 	}
 
 	getChildren(location?: string): Thenable<string[]> {
-        const _location = location ? location : 'root';
-        const path = _location.split('.');
+        const _location = location ? location : '';
 
-        if( path[path.length-1] === 'root') {
-            let rows: string[] = [];
-            if( this.lines ) {
-                rows = this.lines.map((line, index) => `${_location}.line ${index}`);
-            }
-            return Promise.resolve(rows);
+        const path = _location.split(':');
+        const chapter = path.length > 0 ? path[0] : '';
+        const verse   = path.length > 1 ? path[1] : '';
+
+        //if the chapter is an empty string just return the list of all the chapters.
+        if( chapter === '' ){
+            return Promise.resolve(this.index.map(c => c.number));
         }
 
-        if( path[path.length-1].startsWith('line') ) {
-            const rows = [
-                `${_location}.reversed`,
-                `${_location}.uppercase`,
-                `${_location}.lowercase` ];
-            return Promise.resolve(rows);
+        //next if the verse is an empty string return all the verses under the chapter.
+        if( verse === '' ){
+            return Promise.resolve(this.index.find(c => c.number === chapter)?.verses.map(v => `${chapter}:${v.number}`) || []);
         }
 
+        //If it doesn't need the chapters or the verses then it can just return an empty array
+        //because the verses do not have children.
         return Promise.resolve([]);
 	}
 
 	getTreeItem(location?: string): vscode.TreeItem {
-		if (!this.lines) {
+		if (!this.index) {
 			throw new Error('Invalid tree');
 		}
 
 
         const _location = location ? location : 'root';
-        const location_path = _location.split('.');
 
         let content = "document";
         let hasChildren = false;
         let isSelectable = false;
-        if( location_path.length < 2 ){
+
+
+        const path = _location.split(':');
+        const chapter = path.length > 0 ? path[0] : '';
+        const verse   = path.length > 1 ? path[1] : '';
+
+        //If the chapter is an empty string this is the root so the content of document is fine.
+        if( chapter === '' ){
             content = "document";
             hasChildren = true;
+            isSelectable = true;
         }else{
-            const line_number = parseInt(location_path[1].split(' ')[1]);
-
-            if( isNaN(line_number) || line_number >= this.lines.length ){
-                throw (new Error(`Could not find line number ${line_number}`));
-            }
-
-            content = this.lines[line_number];
-
-            if( location_path.length === 3 ){
-                if( location_path[2] === 'reversed' ){
-                    content = 'reversed: ' + content.split('').reverse().join('');
-                }else if( location_path[2] === 'uppercase' ){
-                    content = 'uppercase: ' + content.toUpperCase();
-                }else if( location_path[2] === 'lowercase' ){
-                    content = 'lowercase: ' + content.toLowerCase();
-                }
-            }else{
+            if( verse === '' ){
+                content = `chapter ${chapter}`;
                 hasChildren = true;
+                isSelectable = true;
+            }else{
+                content = `verse ${chapter}:${verse}`;
+                hasChildren = false;
                 isSelectable = true;
             }
         }
-
 
         const treeItem: vscode.TreeItem = new vscode.TreeItem(content, hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
         // treeItem.command = {
@@ -175,20 +201,10 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
         return treeItem;
 	}
 
-    selectLine( location: string ): void {
+    selectReference( location: string ): void {
         if( location === undefined ){ return; }
-        
-        const location_path = location.split('.');
 
-        if( location_path.length >= 2 ){
-            const line_number = parseInt(location_path[1].split(' ')[1]);
-
-            if( isNaN(line_number) || this.lines === undefined || line_number >= this.lines.length ){
-                throw (new Error(`Could not find line number ${line_number}`));
-            }
-
-            this.editorProvider.selectLine( line_number );
-        }
+        this.editorProvider.selectReference( location );
     }
 
 

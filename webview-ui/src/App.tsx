@@ -43,7 +43,7 @@ const vscodeTheme = body?.getAttribute( "data-vscode-theme-id" )
 const editorColorScheme = (vscodeTheme?.toLowerCase().includes( "light" )) ? "light" : "vs-dark";
 
 import Editor from '@monaco-editor/react';
-import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
+import { editor, Selection } from 'monaco-editor/esm/vs/editor/editor.api';
 import { useEffect } from 'react';
 import React from 'react';
 
@@ -62,7 +62,7 @@ interface UsfmMessage{
     command: string,
     content?: InternalUsfmJsonFormat,
     requestId?: number,
-    lineNumber?: number,
+    reference?: string,
 }
 interface VsCodeStub{
   postMessage: (message: UsfmMessage) => void
@@ -134,6 +134,54 @@ export default function App() {
     }
   }
 
+  const selectReference = ( reference: string ) => {
+    
+    const model: editor.ITextModel | undefined = editorRef.current?.getModel() as editor.ITextModel | undefined;
+    const referenceSplit : string[] = reference.split( ":" );
+
+    const chapter = referenceSplit[0];
+    const verse = referenceSplit.length > 1 ? referenceSplit[1] : "";
+
+    if( model ){
+      //make sure we have a chapter.
+      if( chapter !== '' ){
+        //find it in the editor.
+        //                                      searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number
+        const chapterMatches = model.findMatches( "\\c " + chapter    , true                            , false           , true              , null                         , false                  , 1 );
+
+        if( chapterMatches.length > 0 ){
+          const chapterMatch = chapterMatches[0];
+
+          let selection : Selection | undefined = undefined;
+          if( verse === '' ){
+            //if there is not a verse we want to select the chapter.
+            selection = new Selection( chapterMatch.range.startLineNumber, chapterMatch.range.startColumn, chapterMatch.range.endLineNumber, chapterMatch.range.endColumn );
+
+          }else{
+            //now if there is a verse as well find it after the chapter.
+
+            //now look for the verse after the chapter.
+            //                         findNextMatch(searchString: string, searchStart: IPosition             , isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
+            const verseMatches = model.findNextMatch( '\\v ' + verse     , chapterMatch.range.getEndPosition(), false           , true              , null                         , false                  );
+
+            if( verseMatches ){
+              //have the editor highlight the verse.
+              //constructor(                   selectionStartLineNumber: number  , selectionStartColumn: number  , positionLineNumber: number      , positionColumn: number );
+              selection = new Selection( verseMatches.range.startLineNumber, verseMatches.range.startColumn, verseMatches.range.endLineNumber, verseMatches.range.endColumn );
+            }
+          }
+
+          //if something was selected then select it.
+          if( selection ){ 
+            editorRef.current?.setSelection( selection );
+            //make the selection visible.
+            editorRef.current?.revealRange( selection ); 
+          }
+        }
+      }
+    }
+  }
+
   //see if the function acquireVsCodeApi exists.
   //Ignore if acquireVsCodeApi does not exist.
   // @ts-expect-error acquireVsCodeApi exists in vscode.
@@ -195,9 +243,11 @@ export default function App() {
           //and then we respond with the id to indicate that we have done so.
           vscodeRef.current?.postMessage({ command: 'response', requestId: e.data.requestId });
         }
-      }else if( e.data.command === 'selectLine' ){
-        const lineNumber = e.data.lineNumber!;
-        editorRef.current?.revealLineInCenter(lineNumber);
+      }else if( e.data.command === 'selectReference' ){
+        console.log( "Selecting reference " + e.data.reference );
+        if( e.data.reference ){
+          selectReference( e.data.reference );
+        }
       }
     };
     window.addEventListener('message', messageEventListener);

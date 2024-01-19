@@ -19,7 +19,7 @@ interface UsfmMessage{
     command: string,
     content?: InternalUsfmJsonFormat,
     requestId?: number,
-    lineNumber?: number,
+    reference?: string,
 }
 
 export function disposeAll(disposables: vscode.Disposable[]): void {
@@ -372,7 +372,7 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
         const fileDataString = new TextDecoder().decode(fileDataArray);
         const documentData = await usfmToInternalJson( fileDataString );
 
-        //only update if the version is still relevent.
+        //only update if the version is still relevant.
         if( newAlignmentVersion > this._documentData.alignmentData.version &&
             newStrippedUsfmVersion > this._documentData.strippedUsfm.version ){
 
@@ -631,14 +631,14 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
 	}
 
 
-    selectLine(lineNumber: number): void {
+    selectReference(reference: string): void {
         //Iterate through all the webviews.
         for( const webviewPanel of this.webviews.all() ){
-            const selectLineCommand : UsfmMessage = {
-                command: 'selectLine',
-                lineNumber
+            const selectReferenceCommand : UsfmMessage = {
+                command: 'selectReference',
+                reference
             };
-            webviewPanel.webview.postMessage(selectLineCommand);
+            webviewPanel.webview.postMessage(selectReferenceCommand);
         }
     }
 

@@ -14,8 +14,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "usfmOutline.selectLine",
-        "title": "Select Line",
+        "command": "usfmOutline.selectReference",
+        "title": "Select Reference",
         "icon": {
           "light": "resources/light/edit.svg",
           "dark": "resources/dark/edit.svg"
@@ -45,7 +45,7 @@
     "menus": {
       "view/item/context": [
         {
-          "command": "usfmOutline.selectLine",
+          "command": "usfmOutline.selectReference",
           "when": "view == com.lansfords.usfmOutline && viewItem == selectable",
           "group": "inline"
         }
