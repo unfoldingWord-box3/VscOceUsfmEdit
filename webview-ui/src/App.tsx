@@ -34,17 +34,6 @@ self.MonacoEnvironment = {
 loader.config({ monaco });
 loader.init().then(/* ... */);
 
-// // eslint-disable-next-line @typescript-eslint/ban-types
-// function debounce<T extends Function>(cb: T, wait = 20) {
-//   let h = 0;
-//   const callable = (...args: unknown[]) => {
-//       clearTimeout(h);
-//       //@ts-expect-error I don't care if this is a number of Timeout, it is just being used in clearTimeout.
-//       h = setTimeout(() => cb(...args), wait);
-//   };
-//   return callable;
-// }
-
 
 //Determine the color scheme from vscode.  So body will have an attribute with the name on it, so if it includes "light"
 //in it we will go with light otherwise we will be dark.
@@ -87,7 +76,7 @@ export default function App() {
   const editorRef = React.useRef<editor.IEditor | null>(null);
 
 
-  const documentDataRef = React.useRef<InternalUsfmJsonFormat>({
+  const _documentDataRef = React.useRef<InternalUsfmJsonFormat>({
     strippedUsfm: {
       version: -1,
       text: ""
@@ -98,65 +87,34 @@ export default function App() {
     }
   });
 
+  const ignoreChangeCountRef = React.useRef(0);
+
   const setDocumentData = ( newDocumentData : InternalUsfmJsonFormat ) => {
-    documentDataRef.current = newDocumentData;
+    _documentDataRef.current = newDocumentData;
+  }
+
+  const getDocumentData = () : InternalUsfmJsonFormat => {
+    _documentDataRef.current.strippedUsfm.text = (editorRef.current?.getModel() as editor.ITextModel)?.getValue() || "";
+    return _documentDataRef.current;
   }
 
 
-  //const sendSyncTimeoutRef = React.useRef(0);
-
-  // const handleEditorChange : OnChange = (value,_ev) => {
-  //   //const SYNC_DEBOUNCE_TIME_MS = 1000;
-
-  //   if( value !== undefined ){
-  //     if( value !== documentDataRef.current.strippedUsfm.text ){
-  //       const newDocumentData : DirtyDocumentFormat = {
-  //         ...documentDataRef.current,
-  //         strippedUsfm: {
-  //           version: documentDataRef.current.strippedUsfm.version + 1 + Math.random(),
-  //           text: value
-  //         }
-  //       }
-  //       // setDocumentData(newDocumentData);
-  //       // const sendSync = () => {
-  //       //   console.log( "Sending a sync message because of an edit.");
-  //       //   vscodeRef.current?.postMessage({ command: 'sync', content: newDocumentData });
-  //       // }
-  //       // const debouncedSendSync = debounce(sendSync, SYNC_DEBOUNCE_TIME_MS);
-  //       // debouncedSendSync();
-  //       setDocumentData(newDocumentData);
-  //       const sendSync = () => {
-  //         console.log( "Sending a sync message because of an edit.");
-  //         vscodeRef.current?.postMessage({ command: 'sync', content: newDocumentData });
-  //       }
-  //       // clearTimeout( sendSyncTimeoutRef.current );
-  //       // // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  //       // sendSyncTimeoutRef.current = (setTimeout( sendSync, SYNC_DEBOUNCE_TIME_MS ) as any);
-  //       sendSync();
-  //     }
-  //   }
-  // }
-
-  const handleEditorChangeDebounced = ( value : string | undefined, _ev : editor.IModelContentChangedEvent ) : void => {
-    if( value !== undefined ){
-      if( value !== documentDataRef.current.strippedUsfm.text ){
-        const newDocumentData : InternalUsfmJsonFormat = {
-          ...documentDataRef.current,
-          strippedUsfm: {
-            version: documentDataRef.current.strippedUsfm.version + 1 + Math.random(),
-            text: value
-          }
-        }
- 
-        setDocumentData(newDocumentData);
-        console.log( "Sending a sync message because of an edit.");
-        vscodeRef.current?.postMessage({ command: 'sync', content: newDocumentData });
-      }
-    }
+  const handleEditorChangeDebounced = ( _value : string | undefined, _ev : editor.IModelContentChangedEvent ) : void => {
+    ignoreChangeCountRef.current = 0;
+    //debounced edit send.
+    console.log( "Sending a sync message because of an edit.");
+    vscodeRef.current?.postMessage({ command: 'sync', content: getDocumentData() });
   }
 
   const handleEditorChangeDebounceRef = React.useRef(0);
   const handleEditorChange : OnChange = (value,_ev ) => {
+    if( ignoreChangeCountRef.current > 0 ){
+      ignoreChangeCountRef.current -= 1;
+      return;
+    }
+    //inc the stripped version if the text has changed.
+    _documentDataRef.current.strippedUsfm.version += 1 + Math.random();
+
     const SYNC_DEBOUNCE_TIME_MS = 1000;
     clearTimeout( handleEditorChangeDebounceRef.current );
     
@@ -194,7 +152,7 @@ export default function App() {
         let doUpdateState = false;
         let doSendReply = false;
         let doEditorUpdate = false;
-        let newDocumentData = documentDataRef.current;
+        let newDocumentData = getDocumentData();
         if( e.data.content.alignmentData.version > newDocumentData.alignmentData.version ){
           doUpdateState = true;
           newDocumentData = {
@@ -212,13 +170,19 @@ export default function App() {
           };
           doEditorUpdate = true;
         }else if( e.data.content.strippedUsfm.version < newDocumentData.strippedUsfm.version ){
-          doSendReply = true;
+          //Don't bother sending a reply if we have an outgoing edit waiting to go.
+          if( handleEditorChangeDebounceRef.current === 0 ){
+            doSendReply = true;
+          }
         }
         if( doUpdateState ){
           setDocumentData(newDocumentData);
         }
         if( doEditorUpdate ){
+          ignoreChangeCountRef.current += 1;
+          const position = editorRef.current?.getPosition();
           model.setValue(e.data.content.strippedUsfm.text);
+          if( position )editorRef.current?.setPosition(position);
         }
         if( doSendReply ){
           console.log( "sending reply because the webview has a newer version" );
@@ -227,7 +191,7 @@ export default function App() {
       }else if( e.data.command === 'flushUpdates' ){
         if( vscodeRef.current ){
           //First we sync our data.
-          vscodeRef.current?.postMessage({ command: 'sync', content: documentDataRef.current });
+          vscodeRef.current?.postMessage({ command: 'sync', content: getDocumentData() });
           //and then we respond with the id to indicate that we have done so.
           vscodeRef.current?.postMessage({ command: 'response', requestId: e.data.requestId });
         }

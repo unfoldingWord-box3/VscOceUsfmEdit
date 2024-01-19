@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
 import { UsfmDocumentAbstraction, UsfmEditorAbstraction } from './usfmOutline';
+//@ts-ignore
+import {Proskomma} from 'proskomma-core';
+//@ts-ignore
+import {PipelineHandler} from 'proskomma-json-tools';
 
 interface InternalUsfmJsonFormat{
     strippedUsfm: {
@@ -8,7 +12,7 @@ interface InternalUsfmJsonFormat{
     },
     alignmentData: {
         version: number,
-        //TODO_: Add more here
+        perf: any,
     }
 }
 interface UsfmMessage{
@@ -61,22 +65,67 @@ export abstract class Disposable {
 }
 
 
-function usfmToInternalJson( usfm: string ): InternalUsfmJsonFormat {
-    //This is a stopgap measure where we just put everything into strippedUsfm
+async function usfmToInternalJson( mergedUsfm: string ): Promise<InternalUsfmJsonFormat> {
+
+    //first get the perf from the usfm
+    const pk = new Proskomma();
+    pk.importDocument({lang: "xxx", abbr: "yyy"}, "usfm", mergedUsfm);
+    const mergedPerf = JSON.parse(pk.gqlQuerySync("{documents {perf}}").data.documents[0].perf);
+
+
+    //Now split it using a pipeline.
+    const pipelIneH = new PipelineHandler({proskomma: new Proskomma()});
+    const stripAlignmentPipeline_outputs = pipelIneH.runPipeline("stripAlignmentPipeline", {
+        perf: mergedPerf
+    });
+
+    const myStrippedPerf = stripAlignmentPipeline_outputs.perf;
+    const strippedAlign = stripAlignmentPipeline_outputs.strippedAlignment;
+
+    //convert the stripped perf back into usfm.
+    const perfToUsfmPipeline_outputs = await pipelIneH.runPipeline("perfToUsfmPipeline", {
+        perf: myStrippedPerf
+    });
+    const myStrippedUsfm = perfToUsfmPipeline_outputs.usfm;
+
+
     return {
         strippedUsfm: {
             version: 0,
-            text: usfm
+            text: myStrippedUsfm
         },
         alignmentData: {
-            version: 0
+            version: 0,
+            perf: strippedAlign,
         }
     };
 }
 
-function internalJsonToUsfm( json: InternalUsfmJsonFormat ): string {
-    //This is the reverse of that stopgap
-    return json.strippedUsfm.text;
+async function internalJsonToUsfm( json: InternalUsfmJsonFormat ): Promise<string> {
+    //here we run the reverse were we merge it together before saving it out.
+    
+    //first convert the stripped usfm back into perf
+
+    const pk = new Proskomma();
+    pk.importDocument({lang: "xxx", abbr: "yyy"}, "usfm", json.strippedUsfm.text);
+    const myStrippedPerf = JSON.parse(pk.gqlQuerySync("{documents {perf}}").data.documents[0].perf);
+
+
+    //now bring up the pipeline in order to merge it back with the alignment data
+    const pipelineH = new PipelineHandler({proskomma: new Proskomma()});
+    const mergeAlignmentPipeline_output = await pipelineH.runPipeline('mergeAlignmentPipeline', {
+        perf: myStrippedPerf,
+        strippedAlignment: json.alignmentData.perf,
+    });
+    const mergedPerf = mergeAlignmentPipeline_output.perf;
+
+    //now convert that mergedPerf back into usfm
+    const perfToUsfmPipeline_outputs = pipelineH.runPipeline("perfToUsfmPipeline", {
+        perf: mergedPerf,
+    });
+    const mergedUsfm = perfToUsfmPipeline_outputs.usfm;
+
+    return mergedUsfm;
 }
 
 
@@ -108,7 +157,7 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
         }else{
             const fileDataArray = await vscode.workspace.fs.readFile(uri);
             const fileDataString = new TextDecoder().decode(fileDataArray);
-            documentData = usfmToInternalJson( fileDataString );
+            documentData = await usfmToInternalJson( fileDataString );
         }
 
         return new UsfmDocument( uri, documentData!, updateFlusher );
@@ -246,6 +295,10 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
 				});
 			}
 		});
+
+        this._onDidChangeDocument.fire({
+            content: this._documentData
+        });
 	}
 
 	/**
@@ -263,27 +316,27 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
 	 * Called by VS Code when the user saves the document to a new location.
 	 */
 	async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken, isBackup: boolean ): Promise<void> {
-        if( this._documentData && !cancellation.isCancellationRequested ){
-            // Loop through the _delegates and let each one of them flush updates to us
-            await this.updateFlusher.flushUpdates();
-        }
+        if( !this._documentData ){ return; }
+        if( cancellation.isCancellationRequested ){ return; }
 
-
-
+  
         const encoder = new TextEncoder();
 
         // With the save also convert the data back to the internal format
         // so if there was data lost in the conversion we see it.
         if( !isBackup ){
+            // Loop through the _delegates and let each one of them flush updates to us
+            await this.updateFlusher.flushUpdates();
+
             // Now convert the data back to usfm.
-            const usfmData = internalJsonToUsfm( this._documentData );
+            const usfmData = await internalJsonToUsfm( this._documentData );
             const usfmDataArray = encoder.encode(usfmData);
     
             await vscode.workspace.fs.writeFile(targetResource, usfmDataArray);
 
 
             const lastDocumentState = this._documentData;
-            this._documentData = usfmToInternalJson( usfmData );
+            this._documentData = await usfmToInternalJson( usfmData );
             this._documentData.alignmentData.version = lastDocumentState.alignmentData.version + 1 + Math.random();
             this._documentData.strippedUsfm.version = lastDocumentState.strippedUsfm.version + 1 + Math.random();
            
@@ -308,26 +361,39 @@ class UsfmDocument extends Disposable implements vscode.CustomDocument, UsfmDocu
 	 * Called by VS Code when the user calls `revert` on a document.
 	 */
 	async revert(_cancellation: vscode.CancellationToken): Promise<void> {
+        console.log( "started revert" );
+        //get the new version number now so that if edits happen after the revert finishes
+        //we don't overwrite anymore.
+        const newAlignmentVersion = this._documentData.alignmentData.version + (1 + Math.random())*.001;
+        const newStrippedUsfmVersion = this._documentData.strippedUsfm.version + (1 + Math.random())*.001;
+
+
         const fileDataArray = await vscode.workspace.fs.readFile(this.uri);
         const fileDataString = new TextDecoder().decode(fileDataArray);
-        const documentData = usfmToInternalJson( fileDataString );
+        const documentData = await usfmToInternalJson( fileDataString );
 
-        const lastDocumentState = this._documentData;
+        //only update if the version is still relevent.
+        if( newAlignmentVersion > this._documentData.alignmentData.version &&
+            newStrippedUsfmVersion > this._documentData.strippedUsfm.version ){
 
-        //update the version numbers to be more then what it was so that the revert
-        //can go through.
-        this._documentData = documentData;
-        this._documentData.alignmentData.version = lastDocumentState.alignmentData.version + 1 + Math.random();
-        this._documentData.strippedUsfm.version = lastDocumentState.strippedUsfm.version + 1 + Math.random();
+            const lastDocumentState = this._documentData;
 
+            //update the version numbers to be more then what it was so that the revert
+            //can go through.
+            this._documentData = documentData;
+            this._documentData.alignmentData.version = newAlignmentVersion;
+            this._documentData.strippedUsfm.version = newStrippedUsfmVersion;
 
-		this._onDidChangeDocument.fire({
-			content: this._documentData
-		});
+            this._onDidChangeDocument.fire({
+                content: this._documentData
+            });
 
-
-        //update the saved data so isDirty resets.
-        this._savedDocumentData = deepCopy(this._documentData);
+            //update the saved data so isDirty resets.
+            this._savedDocumentData = deepCopy(this._documentData);
+            console.log( "finished revert" );
+        }else{
+            console.log( "canceled revert" );
+        }
 	}
 
 	/**
@@ -409,6 +475,7 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
         const listeners: vscode.Disposable[] = [];
 
         listeners.push(document.onDidChange( e => {
+			// Tell VS Code that the document has been edited by the use.
             this._onDidChangeCustomDocument.fire({
                 document,
                 ...e,
