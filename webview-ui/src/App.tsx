@@ -1,7 +1,8 @@
-// import { useState } from 'react'
+import { useState } from 'react'
 // import reactLogo from './assets/react.svg'
 // import viteLogo from '/vite.svg'
 import './App.css'
+import AlignmentDialogWrapper from './AlignmentDialogWrapper';
 
 
 //This code was given as an example for using Monica with Vite.  I am not including it until I run into a problem that will tell me why.
@@ -59,21 +60,32 @@ interface InternalUsfmJsonFormat{
   }
 }
 interface UsfmMessage{
-    command: string,
-    content?: InternalUsfmJsonFormat,
-    requestId?: number,
-    reference?: string,
+  command: string,
+  content?: InternalUsfmJsonFormat,
+  requestId?: number,
+  commandArg?: string,
+  response?: string,
 }
 interface VsCodeStub{
   postMessage: (message: UsfmMessage) => void
 }
 
+interface AppState{
+  activeView: string,
+  alignmentReference: string,
+}
  
 export default function App() {
 
   const vscodeRef = React.useRef<VsCodeStub | null>(null);
 
   const editorRef = React.useRef<editor.IEditor | null>(null);
+
+  //make a react state for AppState
+  const [appState, setAppState] = useState<AppState>({
+    activeView: "view_stripped_usfm",
+    alignmentReference: ""
+  })
 
 
   const _documentDataRef = React.useRef<InternalUsfmJsonFormat>({
@@ -190,6 +202,21 @@ export default function App() {
     vscodeRef.current = acquireVsCodeApi();
   }
 
+  const _requestIdRef = React.useRef(1);
+  const _callbacksRef = React.useRef<Map<number, (response: UsfmMessage) => void>>(new Map());
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const postMessageWithResponse = (message: UsfmMessage): Promise<UsfmMessage> =>  {
+    const requestId = _requestIdRef.current;
+    _requestIdRef.current += 1;
+    const p = new Promise<UsfmMessage>((resolve) => {
+      _callbacksRef.current.set(requestId, resolve);
+    })
+
+    vscodeRef.current?.postMessage({ ...message, requestId });
+    return p;
+  }
+
   //Go ahead and subscribe to the plugin events.
   useEffect(() => {
     const messageEventListener = (e: {data: UsfmMessage}) => {
@@ -244,24 +271,52 @@ export default function App() {
           vscodeRef.current?.postMessage({ command: 'response', requestId: e.data.requestId });
         }
       }else if( e.data.command === 'selectReference' ){
-        console.log( "Selecting reference " + e.data.reference );
-        if( e.data.reference ){
-          selectReference( e.data.reference );
+        console.log( "Selecting reference " + e.data.commandArg );
+        if( e.data.commandArg ){
+          selectReference( e.data.commandArg );
         }
+        setAppState( { ...appState, activeView: 'view_stripped_usfm' } );
+      }else if( e.data.command === 'alignReference' ){
+        console.log( "performing alignment " + e.data.commandArg );
+        setAppState( { ...appState, activeView: 'view_align_usfm', alignmentReference: e.data.commandArg || '' } );
+      }else if( e.data.command === 'getActiveViewName' ){
+        if( vscodeRef.current ){
+          console.log( "Sending the active view is " + appState.activeView );
+          vscodeRef.current?.postMessage({ command: 'response', requestId: e.data.requestId, response: appState.activeView });
+        }
+      }else if( e.data.command === 'response' ){
+        if( e.data.requestId ){
+          const callback = _callbacksRef.current.get(e.data.requestId);
+          if( callback ){
+            callback(e.data);
+            _callbacksRef.current.delete(e.data.requestId);
+          }
+        }
+      
+      //TODO: remove this, adding it so the code will compile before I implemented the code
+      //which used postMessageWithResponse
+      }else if( e.data.command === 'noSuchCommand' ){
+        postMessageWithResponse({ command: 'response', requestId: e.data.requestId, response: 'no such command' });
       }
     };
     window.addEventListener('message', messageEventListener);
 
     return () => window.removeEventListener('message', messageEventListener);
-  }, []);
+  }, [appState]);
   
 
   return <>
-    <Editor 
-    height="80vh" width="90vh" defaultLanguage="text" 
-    theme={editorColorScheme} 
-    onChange={handleEditorChange} 
-    onMount={handleEditorMount}
-    />
+    <p>ActiveView {appState.activeView}</p>
+    <p style={{ display: (appState.activeView === 'view_stripped_usfm' ? 'block' : 'none') }}>
+      <Editor 
+      height="80vh" width="90vh" defaultLanguage="text" 
+      theme={editorColorScheme} 
+      onChange={handleEditorChange} 
+      onMount={handleEditorMount}
+      />
+    </p>
+    <p style={{ display: (appState.activeView === 'view_align_usfm' ? 'block' : 'none') }}>
+      <AlignmentDialogWrapper reference={appState.alignmentReference} />
+    </p>
   </>
 }

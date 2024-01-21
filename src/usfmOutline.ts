@@ -8,6 +8,7 @@ export interface UsfmEditorAbstraction {
     onUsfmActiveEditorChanged: vscode.Event<UsfmDocumentAbstraction>;
     onUsfmDocumentChanged(callback: (e: vscode.CustomDocumentEditEvent<UsfmDocumentAbstraction>) => void): void;
     selectReference( reference: string ): void;
+    alignReference( reference: string ): void;
 }
 
 interface VerseIndex{
@@ -161,6 +162,7 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
         let content = "document";
         let hasChildren = false;
         let isSelectable = false;
+        let isAlignable = false;
 
 
         const path = _location.split(':');
@@ -172,15 +174,18 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
             content = "document";
             hasChildren = true;
             isSelectable = true;
+            isAlignable = false;
         }else{
             if( verse === '' ){
                 content = `chapter ${chapter}`;
                 hasChildren = true;
                 isSelectable = true;
+                isAlignable = false;
             }else{
                 content = `verse ${chapter}:${verse}`;
                 hasChildren = false;
                 isSelectable = true;
+                isAlignable = true;
             }
         }
 
@@ -204,6 +209,12 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
         if( location === undefined ){ return; }
 
         this.editorProvider.selectReference( location );
+    }
+
+    alignReference( location: string ): void {
+        if( location === undefined ){ return; }
+
+        this.editorProvider.alignReference( location );
     }
 
 

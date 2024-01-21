@@ -35,6 +35,13 @@
           "light": "resources/light/edit.svg",
           "dark": "resources/dark/edit.svg"
         }
+      },{
+        "command": "usfmOutline.alignReference",
+        "title": "Align Reference",
+        "icon": {
+          "light": "resources/light/dependency.svg",
+          "dark": "resources/dark/dependency.svg"
+        }
       }
     ],
     "customEditors": [
@@ -61,6 +68,10 @@
       "view/item/context": [
         {
           "command": "usfmOutline.selectReference",
+          "when": "view == com.lansfords.usfmOutline && viewItem == selectable",
+          "group": "inline"
+        },{
+          "command": "usfmOutline.alignReference",
           "when": "view == com.lansfords.usfmOutline && viewItem == selectable",
           "group": "inline"
         }

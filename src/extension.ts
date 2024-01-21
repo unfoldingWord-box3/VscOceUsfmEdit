@@ -23,6 +23,9 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.registerCommand('usfmOutline.selectReference', (location: string) => {
 		usfmOutlineProvider.selectReference(location);
 	});
+	vscode.commands.registerCommand("usfmOutline.alignReference", (location: string) => {
+		usfmOutlineProvider.alignReference(location);
+	});
 }
 
 // This method is called when your extension is deactivated

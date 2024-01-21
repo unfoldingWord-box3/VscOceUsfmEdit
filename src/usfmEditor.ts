@@ -19,7 +19,8 @@ interface UsfmMessage{
     command: string,
     content?: InternalUsfmJsonFormat,
     requestId?: number,
-    reference?: string,
+    commandArg?: string,
+    response?: string,
 }
 
 export function disposeAll(disposables: vscode.Disposable[]): void {
@@ -505,17 +506,17 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
 		document.onDidDispose(() => disposeAll(listeners));
 
 
-        const configuration = vscode.workspace.getConfiguration();
-        const target = vscode.ConfigurationTarget.Workspace;
+        // const configuration = vscode.workspace.getConfiguration();
+        // const target = vscode.ConfigurationTarget.Workspace;
 
-        //await configuration.update( 'usfmEditor.testConfigurationString', "potatoes", false );
+        // //await configuration.update( 'usfmEditor.testConfigurationString', "potatoes", false );
         
 
-        const testConfigurationString = vscode.workspace?.getConfiguration("usfmEditor").get('testConfigurationString', "fish" );
-        console.log("testConfigurationString3: " + testConfigurationString);
+        // const testConfigurationString = vscode.workspace?.getConfiguration("usfmEditor").get('testConfigurationString', "fish" );
+        // console.log("testConfigurationString3: " + testConfigurationString);
 
-        const testConfigurationInteger = vscode.workspace?.getConfiguration("usfmEditor").get('testConfigurationInteger', 1 );
-        console.log("testConfigurationInteger3: " + testConfigurationInteger);
+        // const testConfigurationInteger = vscode.workspace?.getConfiguration("usfmEditor").get('testConfigurationInteger', 1 );
+        // console.log("testConfigurationInteger3: " + testConfigurationInteger);
 
 		return document;
     }
@@ -615,6 +616,14 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
             </html>`;
     }
 
+    public async getActiveViewName( webviewPanel: vscode.WebviewPanel ): Promise<string>{
+        const message : UsfmMessage = {
+            command: 'getActiveViewName'
+        };
+        const response = await this.postMessageWithResponse( webviewPanel, message );
+        return response.response!;
+    }
+
 
     public async flushUpdates(): Promise<void>{
         //Iterate through all of our web panels and request that they flush their updates.
@@ -644,16 +653,58 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
 	}
 
 
-    selectReference(reference: string): void {
-        //Iterate through all the webviews.
+    async selectReference(reference: string): Promise<void> {
+        const selectReferenceCommand : UsfmMessage = {
+            command: 'selectReference',
+            commandArg: reference
+        };
+
+        //Find if there is a webview already looking at this reference.
+        let foundView = false;
         for( const webviewPanel of this.webviews.all() ){
-            const selectReferenceCommand : UsfmMessage = {
-                command: 'selectReference',
-                reference
-            };
-            webviewPanel.webview.postMessage(selectReferenceCommand);
+            const activeView = await this.getActiveViewName( webviewPanel );
+            if( activeView === "view_stripped_usfm" ){
+                foundView = true;
+                webviewPanel.webview.postMessage(selectReferenceCommand);
+            }
+        }
+        
+        //Now if none of them were on the stripped_usfm view,
+        //Then we will just send it to the first one to pop it over.
+        if( !foundView ){
+            for( const webviewPanel of this.webviews.all() ){
+                webviewPanel.webview.postMessage(selectReferenceCommand);
+                break;
+            }
         }
     }
+
+    async alignReference(reference: string): Promise<void> {
+        const alignReferenceCommand : UsfmMessage = {
+            command: 'alignReference',
+            commandArg: reference
+        };
+
+        //Find if there is a webview already looking at this reference.
+        let foundView = false;
+        for( const webviewPanel of this.webviews.all() ){
+            const activeView = await this.getActiveViewName( webviewPanel );
+            if( activeView === "view_align_usfm" ){
+                foundView = true;
+                webviewPanel.webview.postMessage(alignReferenceCommand);
+            }
+        }
+        
+        //Now if none of them were on the stripped_usfm view,
+        //Then we will just send it to the first one to pop it over.
+        if( !foundView ){
+            for( const webviewPanel of this.webviews.all() ){
+                webviewPanel.webview.postMessage(alignReferenceCommand);
+                break;
+            }
+        }
+    }
+
 
     onUsfmDocumentChanged(callback: (e: vscode.CustomDocumentEditEvent<UsfmDocument>) => void): void {
         this.onDidChangeCustomDocument(callback);
@@ -669,13 +720,34 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
             case 'ready':
                 this.updateWebview( document, webviewPanel );
                 break;
-			case 'response':
-				{
-					const callback = this._callbacks.get(message.requestId!);
-					callback?.(message);
-                    this._callbacks.delete(message.requestId!);
-					return;
-				}
+            case 'response':
+                const callback = this._callbacks.get(message.requestId!);
+                callback?.(message);
+                this._callbacks.delete(message.requestId!);
+                break;
+
+            case 'getConfiguration': //This makes it so that the webview can get a configuration.
+                const configurationName = message.commandArg;
+                if( configurationName ){
+                    const configuration = vscode.workspace?.getConfiguration("usfmEditor").get(configurationName );
+                    webviewPanel.webview.postMessage({
+                        command: 'response',
+                        requestId: message.requestId,
+                        content: configuration
+                    });
+                }
+                break;
+            
+            case 'getFile': //This makes it so that the webview can open a file.
+                const filePath = message.commandArg;
+                if( filePath ){
+                    const fileUri = vscode.Uri.file(filePath);
+                    webviewPanel.webview.postMessage({
+                        command: 'response',
+                        requestId: message.requestId,
+                        content: fileUri
+                    });
+                }
 		}
 	}
 
