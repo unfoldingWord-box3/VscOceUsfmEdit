@@ -12,6 +12,21 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration":{
+      "title": "usfmEditor",
+      "properties": {
+        "usfmEditor.outline.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh the outline"
+        },
+        "usfmEditor.testConfigurationString": {
+          "type": "string",
+          "default": "abcd",
+          "description": "Test Configuration String"
+        }
+      }
+    },
     "commands": [
       {
         "command": "usfmOutline.selectReference",

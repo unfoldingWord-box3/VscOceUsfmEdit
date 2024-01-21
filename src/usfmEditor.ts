@@ -504,6 +504,19 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
 
 		document.onDidDispose(() => disposeAll(listeners));
 
+
+        const configuration = vscode.workspace.getConfiguration();
+        const target = vscode.ConfigurationTarget.Workspace;
+
+        //await configuration.update( 'usfmEditor.testConfigurationString', "potatoes", false );
+        
+
+        const testConfigurationString = vscode.workspace?.getConfiguration("usfmEditor").get('testConfigurationString', "fish" );
+        console.log("testConfigurationString3: " + testConfigurationString);
+
+        const testConfigurationInteger = vscode.workspace?.getConfiguration("usfmEditor").get('testConfigurationInteger', 1 );
+        console.log("testConfigurationInteger3: " + testConfigurationInteger);
+
 		return document;
     }
 

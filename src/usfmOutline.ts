@@ -37,12 +37,11 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 		editorProvider.onUsfmDocumentChanged(e => this.onUsfmDocumentChanged(e));
 
 
-		this.autoRefresh = vscode.workspace.getConfiguration('usfmOutline').get('autoRefresh', true);
+		this.autoRefresh = vscode.workspace?.getConfiguration('usfmEditor.outline').get('autoRefresh', true);
 		vscode.workspace.onDidChangeConfiguration(() => {
-			this.autoRefresh = vscode.workspace.getConfiguration('usfmOutline').get('autoRefresh', true);
+			this.autoRefresh = vscode.workspace.getConfiguration('usfmEditor.outline').get('autoRefresh', true);
 		});
 		this.onUsfmActiveEditorChanged(undefined);
-
 	}
 
 	refresh(location?: string, document?: UsfmDocumentAbstraction): void {
