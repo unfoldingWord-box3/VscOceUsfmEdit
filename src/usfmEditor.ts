@@ -4,6 +4,8 @@ import { UsfmDocumentAbstraction, UsfmEditorAbstraction } from './usfmOutline';
 import {Proskomma} from 'proskomma-core';
 //@ts-ignore
 import {PipelineHandler} from 'proskomma-json-tools';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface InternalUsfmJsonFormat{
     strippedUsfm: {
@@ -15,12 +17,13 @@ interface InternalUsfmJsonFormat{
         perf: any,
     }
 }
+
 interface UsfmMessage{
     command: string,
     content?: InternalUsfmJsonFormat,
     requestId?: number,
     commandArg?: string,
-    response?: string,
+    response?: any,
 }
 
 export function disposeAll(disposables: vscode.Disposable[]): void {
@@ -733,21 +736,31 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                     webviewPanel.webview.postMessage({
                         command: 'response',
                         requestId: message.requestId,
-                        content: configuration
+                        response: configuration
                     });
                 }
                 break;
             
-            case 'getFile': //This makes it so that the webview can open a file.
-                const filePath = message.commandArg;
-                if( filePath ){
-                    const fileUri = vscode.Uri.file(filePath);
-                    webviewPanel.webview.postMessage({
-                        command: 'response',
-                        requestId: message.requestId,
-                        content: fileUri
+            case 'getFile':
+                const filePath = message.commandArg!;
+                const firstWorkSpaceFolder = vscode.workspace?.workspaceFolders?.[0]?.uri.fsPath;
+                const filePathRebased = firstWorkSpaceFolder ? path.join(firstWorkSpaceFolder, filePath) : filePath;
+
+                if (filePathRebased) {
+                    fs.readFile(filePathRebased, 'utf8', (err, data) => {
+                        if (err) {
+                            // Handle error
+                            console.error(err);
+                        } else {
+                            webviewPanel.webview.postMessage({
+                                command: 'response',
+                                requestId: message.requestId,
+                                response: data,
+                            });
+                        }
                     });
                 }
+                break;
 		}
 	}
 

@@ -64,7 +64,7 @@ interface UsfmMessage{
   content?: InternalUsfmJsonFormat,
   requestId?: number,
   commandArg?: string,
-  response?: string,
+  response?: any,
 }
 interface VsCodeStub{
   postMessage: (message: UsfmMessage) => void
@@ -110,7 +110,6 @@ export default function App() {
     return _documentDataRef.current;
   }
 
-
   const handleEditorChangeDebounced = ( _value : string | undefined, _ev : editor.IModelContentChangedEvent ) : void => {
     ignoreChangeCountRef.current = 0;
     //debounced edit send.
@@ -146,8 +145,7 @@ export default function App() {
     }
   }
 
-  const selectReference = ( reference: string ) => {
-    
+  const selectReference = ( reference: string ) => {    
     const model: editor.ITextModel | undefined = editorRef.current?.getModel() as editor.ITextModel | undefined;
     const referenceSplit : string[] = reference.split( ":" );
 
@@ -215,6 +213,14 @@ export default function App() {
 
     vscodeRef.current?.postMessage({ ...message, requestId });
     return p;
+  }
+
+  const getConfiguration = async (key: string) : Promise<any> => {
+    return (await postMessageWithResponse( { command: 'getConfiguration', commandArg: key } ) ).response!;
+  }
+
+  const getFile = async (path: string) : Promise<string|undefined> => {
+    return (await postMessageWithResponse( { command: 'getFile', commandArg: path } )).response;
   }
 
   //Go ahead and subscribe to the plugin events.
@@ -316,7 +322,11 @@ export default function App() {
       />
     </p>
     <p style={{ display: (appState.activeView === 'view_align_usfm' ? 'block' : 'none') }}>
-      <AlignmentDialogWrapper reference={appState.alignmentReference} />
+      <AlignmentDialogWrapper 
+        reference={appState.alignmentReference} 
+        getConfiguration={getConfiguration}
+        getFile={getFile}
+      />
     </p>
   </>
 }

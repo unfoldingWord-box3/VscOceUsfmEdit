@@ -161,8 +161,7 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
 
         let content = "document";
         let hasChildren = false;
-        let isSelectable = false;
-        let isAlignable = false;
+        let contextValue : string | undefined = undefined;
 
 
         const path = _location.split(':');
@@ -173,19 +172,16 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
         if( chapter === '' ){
             content = "document";
             hasChildren = true;
-            isSelectable = true;
-            isAlignable = false;
+            contextValue = "root";
         }else{
             if( verse === '' ){
                 content = `chapter ${chapter}`;
                 hasChildren = true;
-                isSelectable = true;
-                isAlignable = false;
+                contextValue = "chapter";
             }else{
                 content = `verse ${chapter}:${verse}`;
                 hasChildren = false;
-                isSelectable = true;
-                isAlignable = true;
+                contextValue = "verse";
             }
         }
 
@@ -198,8 +194,8 @@ export class UsfmOutlineProvider implements vscode.TreeDataProvider< string > {
         // treeItem.iconPath = this.getIcon(valueNode);
         // treeItem.contextValue = valueNode.type;
 
-        if( isSelectable ){
-            treeItem.contextValue = "selectable";
+        if( contextValue ){
+            treeItem.contextValue = contextValue;
         }
 
         return treeItem;

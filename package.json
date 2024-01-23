@@ -24,6 +24,11 @@
           "type": "string",
           "default": "abcd",
           "description": "Test Configuration String"
+        },
+        "usfmEditor.sourceMap": {
+          "type": "object",
+          "description": "Source Usfm Mappings.\nRegular expression to map from target file to source.  First one which matches is used. \ne.g. { \"(.*)\\\\.usfm\": \"source/\\\\1.usfm\" }",
+          "default": { }
         }
       }
     },
@@ -68,11 +73,11 @@
       "view/item/context": [
         {
           "command": "usfmOutline.selectReference",
-          "when": "view == com.lansfords.usfmOutline && viewItem == selectable",
+          "when": "view == com.lansfords.usfmOutline && (viewItem == chapter || viewItem == verse)",
           "group": "inline"
         },{
           "command": "usfmOutline.alignReference",
-          "when": "view == com.lansfords.usfmOutline && viewItem == selectable",
+          "when": "view == com.lansfords.usfmOutline && viewItem == verse",
           "group": "inline"
         }
       ]
