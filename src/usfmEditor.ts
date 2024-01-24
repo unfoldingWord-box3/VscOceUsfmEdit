@@ -745,6 +745,7 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 const filePath = message.commandArg!;
                 const firstWorkSpaceFolder = vscode.workspace?.workspaceFolders?.[0]?.uri.fsPath;
                 const filePathRebased = firstWorkSpaceFolder ? path.join(firstWorkSpaceFolder, filePath) : filePath;
+                console.log(`getFile`, {filePath, firstWorkSpaceFolder, filePathRebased})
 
                 if (filePathRebased) {
                     fs.readFile(filePathRebased, 'utf8', (err, data) => {
