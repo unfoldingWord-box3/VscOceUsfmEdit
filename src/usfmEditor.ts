@@ -733,6 +733,7 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 const configurationName = message.commandArg;
                 if( configurationName ){
                     const configuration = vscode.workspace?.getConfiguration("usfmEditor").get(configurationName );
+                    console.log( "getConfiguration", configuration );
                     webviewPanel.webview.postMessage({
                         command: 'response',
                         requestId: message.requestId,
@@ -740,7 +741,20 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                     });
                 }
                 break;
-            
+
+            case 'getUsfm': //get the aligned USFM for book
+                console.log( "getUsfm" );
+                internalJsonToUsfm( document.documentData ).then(usfmData => {
+                    let docData = usfmData?.substring(0, 100) || 'null';
+                    console.log("getUsfm: document.documentData", docData);
+                    webviewPanel.webview.postMessage({
+                        command: 'response',
+                        requestId: message.requestId,
+                        response: usfmData
+                    });
+                });
+                break;
+
             case 'getFile':
                 const filePath = message.commandArg!;
                 const firstWorkSpaceFolder = vscode.workspace?.workspaceFolders?.[0]?.uri.fsPath;

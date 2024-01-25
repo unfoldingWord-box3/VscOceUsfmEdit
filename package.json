@@ -84,18 +84,18 @@
     }
   },
   "scripts": {
-    "build:webview": "PATH=/opt/homebrew/bin:$PATH && cd webview-ui && npm run build",
-    "compile": "PATH=/opt/homebrew/bin:$PATH && webpack",
-    "compile-tests": "PATH=/opt/homebrew/bin:$PATH && tsc -p . --outDir out",
+    "build:webview": "cd webview-ui && npm run build",
+    "compile": "webpack",
+    "compile-tests": "tsc -p . --outDir out",
     "install:all": "npm install && cd webview-ui && npm install",
-    "lint": "PATH=/opt/homebrew/bin:$PATH && eslint src --ext ts",
-    "package": "PATH=/opt/homebrew/bin:$PATH && webpack --mode production --devtool hidden-source-map",
-    "pretest": "PATH=/opt/homebrew/bin:$PATH && npm run compile-tests && npm run compile && npm run lint",
-    "test": "PATH=/opt/homebrew/bin:$PATH && node ./out/test/runTest.js",
-    "vscode:prepublish": "PATH=/opt/homebrew/bin:$PATH && npm run package",
-    "watch": "PATH=/opt/homebrew/bin:$PATH && webpack --watch",
-    "watch:webview": "PATH=/opt/homebrew/bin:$PATH && cd webview-ui && npm run watch",
-    "watch-tests": "PATH=/opt/homebrew/bin:$PATH && tsc -p . -w --outDir out"
+    "lint": "eslint src --ext ts",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "test": "node ./out/test/runTest.js",
+    "vscode:prepublish": "npm run package",
+    "watch": "webpack --watch",
+    "watch:webview": "cd webview-ui && npm run watch",
+    "watch-tests": "tsc -p . -w --outDir out"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.3",

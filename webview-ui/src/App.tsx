@@ -223,12 +223,17 @@ export default function App() {
     return (await postMessageWithResponse( { command: 'getFile', commandArg: path } )).response;
   }
 
+  const getUsfm = async () : Promise<string|undefined> => {
+    return (await postMessageWithResponse( { command: 'getUsfm', commandArg: '' } )).response;
+  }
+
   //Go ahead and subscribe to the plugin events.
   useEffect(() => {
     const messageEventListener = (e: {data: UsfmMessage}) => {
       const model: editor.ITextModel | undefined = editorRef.current?.getModel() as editor.ITextModel | undefined;
       //If the model doesn't exist yet, just drop the sync so we don't think we are up to date,
       //when we are not.
+      console.log( "messageEventListener:", e );
       if( e.data.command === 'sync' && e.data.content && model ){
         let doUpdateState = false;
         let doSendReply = false;
@@ -326,6 +331,7 @@ export default function App() {
         reference={appState.alignmentReference} 
         getConfiguration={getConfiguration}
         getFile={getFile}
+        getUsfm={getUsfm}
       />
     </p>
   </>
