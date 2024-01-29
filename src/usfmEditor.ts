@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 interface InternalUsfmJsonFormat{
+    orgPerf: any,
     strippedUsfm: {
         version: number,
         text: string
@@ -94,6 +95,7 @@ async function usfmToInternalJson( mergedUsfm: string ): Promise<InternalUsfmJso
 
 
     return {
+        orgPerf: mergedPerf,
         strippedUsfm: {
             version: 0,
             text: myStrippedUsfm
