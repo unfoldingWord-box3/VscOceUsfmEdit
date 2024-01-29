@@ -1,9 +1,13 @@
+// @ts-ignore
 import React from 'react';
+
+console.log("AlignmentDialogWrapper Started")
 
 interface AlignmentDialogWrapperProps {
     reference: string;
     getConfiguration: (key: string) => Promise<any>;
     getFile: (path: string) => Promise<string|undefined>;
+    getUsfm: () => Promise<string|undefined>;
 }
 
 interface SourceMapI{
@@ -13,40 +17,45 @@ interface SourceMapI{
 const AlignmentDialogWrapper: React.FC<AlignmentDialogWrapperProps> = ({
     reference,
     getConfiguration,
-    getFile
+    getFile,
+    getUsfm
 }) => {
-
     //state var for the source map.
     const [sourceMap, setSourceMap] = React.useState<SourceMapI>({});
 
     const [smallFile, setSmallFile] = React.useState<string>("");
 
     async function getSourceMap(){
-        console.log( "requesting sourceMap." );
+        console.log( "requesting sourceMap:", reference );
         let sourceMap : any = await getConfiguration("sourceMap");
         if( Object.keys(sourceMap).length == 0 ){ 
-            sourceMap = {"(.*)\\.usfm": "source/\\1.usfm"}; 
+            sourceMap = {"(.*)\\.usfm": "source/\\1.usfm"};
+            console.log( "received sourceMap is null", sourceMap );
         }
-        console.log( "received sourceMap. " + sourceMap );
+        console.log( "received sourceMap:", sourceMap );
         setSourceMap(sourceMap);
     }
+
     if( Object.keys(sourceMap).length == 0 ){ 
+        console.log( "requesting smallFile:", {reference} );
         getSourceMap(); 
     }else{
-        console.log( "Have sourceMap. " + sourceMap );
+        console.log( "Have sourceMap:", sourceMap );
     }
 
-    async function getSmallFile(){
-        console.log( "requesting smallFile." );
-        let fileContent = await getFile("./bob.txt");
-        console.log( "received smallFile. " + fileContent );
+    async function _getUsfm(){
+        console.log( "_getUsfm() requesting USFM:", {reference} );
+        const fileContent = await getUsfm();
+        console.log( "_getUsfm() received USFM. " + fileContent?.substring(0,400) );
         if( fileContent ){
             setSmallFile(fileContent);
         }
     }
+
     if( smallFile === "" ){ 
-        getSmallFile(); 
-    }else{
+        console.log( "requesting smallFile:", {reference} );
+        _getUsfm(); 
+    } else {
         console.log( "Have smallFile. " + smallFile );
     }
 
