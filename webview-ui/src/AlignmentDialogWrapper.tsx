@@ -51,13 +51,13 @@ const AlignmentDialogWrapper: React.FC<AlignmentDialogWrapperProps> = ({
         const fileContent = await getUsfm();
         console.log( "_getUsfm() received USFM. " + fileContent?.substring(0,400) );
         if( fileContent ){
-            setTargetUsfm(fileContent);
-            const results = await navigateAndReadFile('OriginalBibleUsfm');
-            const originalLangContent = results?.response?.content
+            const response = await navigateAndReadFile('OriginalBibleUsfm');
+            const originalLangContent = response?.contents
             console.log( "_getUsfm() received original USFM. ", originalLangContent?.substring(0,400) );
             if (originalLangContent) {
                 setOriginalUsfm(originalLangContent)
             }
+            setTargetUsfm(fileContent);
         }
     }
 
