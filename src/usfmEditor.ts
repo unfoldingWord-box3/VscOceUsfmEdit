@@ -6,6 +6,10 @@ import {Proskomma} from 'proskomma-core';
 import {PipelineHandler} from 'proskomma-json-tools';
 import * as fs from 'fs';
 import * as path from 'path';
+import {Uri, window} from "vscode";
+import util from "util";
+
+const configurationKey = "usfmEditor";
 
 interface InternalUsfmJsonFormat{
     orgPerf: any,
@@ -448,9 +452,10 @@ export function useEdit( before: string, edit: { start: number, end: number, new
 }
 
 export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocument>,  UsfmEditorAbstraction, UpdateFlushable{
-
+    private static _context: vscode.ExtensionContext
 
     public static register(context: vscode.ExtensionContext): [vscode.Disposable, UsfmEditorAbstraction] {
+        this._context = context
         const provider = new UsfmEditorProvider(context);
         return [vscode.window.registerCustomEditorProvider(UsfmEditorProvider.viewType, provider,{
             webviewOptions: {
@@ -716,6 +721,156 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
     }
 
 
+    private _getGlobalKey(key:string):string|undefined {
+        if (this._context && key) {
+            try {
+                const value = this._context?.globalState.get(key);
+
+                if (typeof value === 'string') {
+                    // @ts-ignore
+                    return value.toString()
+                } else {
+                    console.log(`_getGlobalKey() invalid type for ${key}: ${typeof value}`, value)
+                }
+            } catch (e) {
+                console.warn(`_getGlobalKey() failure reading ${key}`, e)
+            }
+        } else {
+            console.warn(`_getGlobalKey() invalid workspace or key: ${key}`)
+        }
+        return undefined
+    }
+
+    private _setGlobalKey(key:string, value:string):boolean {
+        if (this._context && key) {
+            try {
+                // To write a setting
+                this._context?.globalState.update(key, value);
+                const verify = this._context?.globalState.get(key);
+                console.log(`_setGlobalKey() verified ${key}: ${verify}`, verify)
+                return true
+            } catch (e) {
+                console.warn(`_setGlobalKey() failure updating ${key}`, e)
+            }
+        } else {
+            console.warn(`_setGlobalKey() invalid workspace or key: ${key}`)
+        }
+        return false
+    }
+
+    private _navigateToAndReadFile(webviewPanel: vscode.WebviewPanel, message:any) {
+        let openDialog = async () => {
+            const options = {
+                canSelectMany: !!message?.canSelectMany,
+                openLabel: message?.openLabel || 'Open USFM',
+                filters: message?.filters || {
+                    'All files': ['*']
+                }
+            };
+            console.log('_navigateToAndReadFile - options:',options);
+
+            const key = message?.key;
+            if(key) {
+                const initialFolder = this._getGlobalKey(key)
+                if (initialFolder) {
+                    console.log(`_navigateToAndReadFile(${key}) - initial folder: ${initialFolder}`)
+                    // @ts-ignore
+                    options['defaultUri'] = Uri.file(initialFolder)
+                    console.log(`options:`, options)
+                } else {
+                    console.log(`_navigateToAndReadFile(${key}) - missing initial folder`)
+                }
+            }
+
+            let contents:string|null = null
+            let fileUri = await window.showOpenDialog(options);
+            let _fileUri:string|null = null
+            if (fileUri && fileUri[0]) {
+                _fileUri = fileUri[0].fsPath;
+
+                console.log('_navigateToAndReadFile - reading file :',_fileUri);
+                let readFile = util.promisify(fs.readFile);
+
+                let readContents = async (fileUri:string) => {
+                    if (fileUri) {
+                        let data = await readFile(fileUri, 'utf8');
+                        contents = data.toString()
+                        console.log('_navigateToAndReadFile: File contents: ' + contents.substr(0, 100));
+                    }
+                };
+
+                await readContents(_fileUri);
+
+                if (contents) { // if we loaded data, update folder used
+                    let dirPath = path.dirname(_fileUri);
+                    if (dirPath) {
+                        this._setGlobalKey(key, dirPath)
+                    }
+                }
+            }
+
+            console.log('_navigateToAndReadFile -Selected folder: ' + _fileUri);
+            webviewPanel.webview.postMessage({
+                command: 'response',
+                requestId: message.requestId,
+                response: {
+                    filePath: _fileUri,
+                    contents
+                }
+            });
+        };
+
+        openDialog();
+    }
+
+    private _navigateToAndSaveFile(webviewPanel: vscode.WebviewPanel, message:any) {
+
+        let saveDialog = async () => {
+            const options = {
+                canSelectMany: false,
+                openLabel: message?.openLabel || 'Save USFM',
+                filters: message?.filters || {
+                    'All files': ['*']
+                }
+            };
+            console.log('_showFileOpenDialog - options:',options);
+
+            const filePath = message?.filePath;
+            if(filePath) {
+                console.log(`_navigateToAndSaveFile - initial file path: ${filePath}`)
+                // @ts-ignore
+                options['defaultUri'] = Uri.file(filePath)
+                console.log(`_showFileOpenDialog - options:`, options)
+            }
+
+            let fileUri = await window.showSaveDialog(options);
+            if (fileUri) {
+                const _fileUri = fileUri.fsPath;
+
+                console.log('_navigateToAndSaveFile - saving file :',_fileUri);
+
+                fs.writeFile(_fileUri, message?.text || '', 'utf8', function(err) {
+                    if (err) {
+                        console.log('_navigateToAndSaveFile - An error occurred while writing the file.');
+                    } else {
+                        console.log('_navigateToAndSaveFile - File written successfully.');
+                    }
+
+                    webviewPanel.webview.postMessage({
+                        command: 'response',
+                        requestId: message.requestId,
+                        response: {
+                            filePath: _fileUri,
+                            success: !err
+                        }
+                    });
+                });
+            }
+        };
+
+        saveDialog();
+    }
+
     private onMessage(document: UsfmDocument, message: UsfmMessage, webviewPanel: vscode.WebviewPanel) {
 		switch (message.command) {
             case 'sync':
@@ -734,7 +889,7 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
             case 'getConfiguration': //This makes it so that the webview can get a configuration.
                 const configurationName = message.commandArg;
                 if( configurationName ){
-                    const configuration = vscode.workspace?.getConfiguration("usfmEditor").get(configurationName );
+                    const configuration = vscode.workspace?.getConfiguration(configurationKey).get(configurationName );
                     console.log( "getConfiguration", configuration );
                     webviewPanel.webview.postMessage({
                         command: 'response',
@@ -743,6 +898,19 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                     });
                 }
                 break;
+
+            case "navigateAndSaveFile":
+                // Code that should run in response to the save message command
+                window.showInformationMessage('saving');
+                this._navigateToAndSaveFile(webviewPanel, message)
+                return;
+
+            case 'navigateAndReadFile':
+                // Code that should run in response to the save message command
+                window.showInformationMessage('openFilePicker');
+                console.log("openFilePicker", message)
+                this._navigateToAndReadFile(webviewPanel, message)
+                return;
 
             case 'getUsfm': //get the aligned USFM for book
                 console.log( "getUsfm" );

@@ -215,6 +215,21 @@ export default function App() {
     return p;
   }
 
+  const navigateAndReadFile = async (key: string) : Promise<any> => {
+    const response = await postMessageWithResponse({
+      command:'navigateAndReadFile',
+      // @ts-ignore
+      canSelectMany: false,
+      label: 'Open USFM',
+      key,
+      filters: {
+        'USFM files': ['usfm'],
+        'All files': ['*']
+      }
+    });
+    return response
+  }
+  
   const getConfiguration = async (key: string) : Promise<any> => {
     return (await postMessageWithResponse( { command: 'getConfiguration', commandArg: key } ) ).response!;
   }
@@ -332,6 +347,7 @@ export default function App() {
         getConfiguration={getConfiguration}
         getFile={getFile}
         getUsfm={getUsfm}
+        navigateAndReadFile={navigateAndReadFile}
       />
     </p>
   </>
