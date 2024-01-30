@@ -7,6 +7,7 @@ interface AlignmentDialogWrapperProps {
     reference: string;
     getConfiguration: (key: string) => Promise<any>;
     getFile: (path: string) => Promise<string|undefined>;
+    navigateAndReadFile: (key: string) => Promise<any>;
     getUsfm: () => Promise<string|undefined>;
 }
 
@@ -18,12 +19,14 @@ const AlignmentDialogWrapper: React.FC<AlignmentDialogWrapperProps> = ({
     reference,
     getConfiguration,
     getFile,
-    getUsfm
+    getUsfm,
+    navigateAndReadFile,
 }) => {
     //state var for the source map.
     const [sourceMap, setSourceMap] = React.useState<SourceMapI>({});
 
-    const [smallFile, setSmallFile] = React.useState<string>("");
+    const [targetUsfm, setTargetUsfm] = React.useState<string>("");
+    const [originalUsfm, setOriginalUsfm] = React.useState<string>("");
 
     async function getSourceMap(){
         console.log( "requesting sourceMap:", reference );
@@ -37,7 +40,7 @@ const AlignmentDialogWrapper: React.FC<AlignmentDialogWrapperProps> = ({
     }
 
     if( Object.keys(sourceMap).length == 0 ){ 
-        console.log( "requesting smallFile:", {reference} );
+        console.log( "requesting targetUsfm:", {reference} );
         getSourceMap(); 
     }else{
         console.log( "Have sourceMap:", sourceMap );
@@ -48,15 +51,21 @@ const AlignmentDialogWrapper: React.FC<AlignmentDialogWrapperProps> = ({
         const fileContent = await getUsfm();
         console.log( "_getUsfm() received USFM. " + fileContent?.substring(0,400) );
         if( fileContent ){
-            setSmallFile(fileContent);
+            setTargetUsfm(fileContent);
+            const results = await navigateAndReadFile('OriginalBibleUsfm');
+            const originalLangContent = results?.response?.content
+            console.log( "_getUsfm() received original USFM. ", originalLangContent?.substring(0,400) );
+            if (originalLangContent) {
+                setOriginalUsfm(originalLangContent)
+            }
         }
     }
 
-    if( smallFile === "" ){ 
-        console.log( "requesting smallFile:", {reference} );
+    if( targetUsfm === "" ){ 
+        console.log( "requesting targetUsfm:", {reference} );
         _getUsfm(); 
     } else {
-        console.log( "Have smallFile. " + smallFile );
+        console.log( "Have targetUsfm. " + targetUsfm );
     }
 
     return (
@@ -65,7 +74,7 @@ const AlignmentDialogWrapper: React.FC<AlignmentDialogWrapperProps> = ({
             <p>{reference}</p>
             <p>{Object.entries(sourceMap).map( ([key, value]) => <p>{key} : {value}</p>)}</p>
             <p>Small file:</p>
-            <p>{smallFile}</p>
+            <p>{targetUsfm}</p>
         </div>
     )
 }
