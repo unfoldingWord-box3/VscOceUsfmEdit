@@ -782,7 +782,7 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 }
             }
 
-            let contents:string|null = null
+            let contents_:string|null = null
             let fileUri = await window.showOpenDialog(options);
             let _fileUri:string|null = null
             if (fileUri && fileUri[0]) {
@@ -791,17 +791,13 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 console.log('_navigateToAndReadFile - reading file :',_fileUri);
                 let readFile = util.promisify(fs.readFile);
 
-                let readContents = async (fileUri:string) => {
-                    if (fileUri) {
-                        let data = await readFile(fileUri, 'utf8');
-                        contents = data.toString()
-                        console.log('_navigateToAndReadFile: File contents: ' + contents.substr(0, 100));
-                    }
-                };
+                if (_fileUri) {
+                    let data = await readFile(_fileUri, 'utf8');
+                    contents_ = data.toString()
+                    console.log('_navigateToAndReadFile: File contents: ' + contents_.substr(0, 100));
+                }
 
-                await readContents(_fileUri);
-
-                if (contents) { // if we loaded data, update folder used
+                if (contents_) { // if we loaded data, update folder used
                     let dirPath = path.dirname(_fileUri);
                     if (dirPath) {
                         this._setGlobalKey(key, dirPath)
@@ -809,14 +805,17 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 }
             }
 
+            const response = {
+                filePath: _fileUri,
+                contents: contents_
+            };
+
             console.log('_navigateToAndReadFile -Selected folder: ' + _fileUri);
+            console.log('_navigateToAndReadFile - contents: '+ contents_?.substring(0,200));
             webviewPanel.webview.postMessage({
                 command: 'response',
                 requestId: message.requestId,
-                response: {
-                    filePath: _fileUri,
-                    contents
-                }
+                response
             });
         };
 
@@ -903,14 +902,14 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 // Code that should run in response to the save message command
                 window.showInformationMessage('saving');
                 this._navigateToAndSaveFile(webviewPanel, message)
-                return;
+                break;
 
             case 'navigateAndReadFile':
                 // Code that should run in response to the save message command
                 window.showInformationMessage('openFilePicker');
                 console.log("openFilePicker", message)
                 this._navigateToAndReadFile(webviewPanel, message)
-                return;
+                break;
 
             case 'getUsfm': //get the aligned USFM for book
                 console.log( "getUsfm" );

@@ -216,7 +216,7 @@ export default function App() {
   }
 
   const navigateAndReadFile = async (key: string) : Promise<any> => {
-    const response = await postMessageWithResponse({
+    const results = await postMessageWithResponse({
       command:'navigateAndReadFile',
       // @ts-ignore
       canSelectMany: false,
@@ -227,6 +227,7 @@ export default function App() {
         'All files': ['*']
       }
     });
+    const response = results?.response;
     return response
   }
   
