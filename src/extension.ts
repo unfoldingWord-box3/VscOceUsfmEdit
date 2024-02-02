@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 	const usfmOutlineProvider = new UsfmOutlineProvider(context, usfmEditorProviderObject);
-	vscode.window.registerTreeDataProvider('com.lansfords.usfmOutline', usfmOutlineProvider);
+	vscode.window.registerTreeDataProvider('com.oceEditorTools.usfmOutline', usfmOutlineProvider);
 
 	vscode.commands.registerCommand('usfmOutline.selectReference', (location: string) => {
 		usfmOutlineProvider.selectReference(location);

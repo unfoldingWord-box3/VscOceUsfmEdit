@@ -3,7 +3,7 @@ import { UsfmDocumentAbstraction, UsfmEditorAbstraction } from './usfmOutline';
 //@ts-ignore
 import {Proskomma} from 'proskomma-core';
 //@ts-ignore
-import {PipelineHandler} from 'proskomma-json-tools';
+//import {PipelineHandler} from 'proskomma-json-tools';
 import * as fs from 'fs';
 import * as path from 'path';
 import {Uri, window} from "vscode";
@@ -73,29 +73,35 @@ export abstract class Disposable {
 	}
 }
 
+const usfm2perf = (usfm: String) => {
+    let perf;
+    try {
+        const pk = new Proskomma();
+        pk.importDocument(
+            {lang: 'xxx', abbr: 'XXX'}, // doesn't matter...
+            'usfm', 
+            usfm
+        );
+        const perfResultDocument = pk.gqlQuerySync(
+            '{documents {id docSetId perf} }')
+            .data.documents[0];
+        perf = JSON.parse(perfResultDocument.perf);
+        console.log("perf");
+        console.log(perf);
+    } catch (e) {
+        console.log(e);
+        perf = null;
+    }
+    return perf;
+};
 
 async function usfmToInternalJson( mergedUsfm: string ): Promise<InternalUsfmJsonFormat> {
 
     //first get the perf from the usfm
-    const pk = new Proskomma();
-    pk.importDocument({lang: "xxx", abbr: "yyy"}, "usfm", mergedUsfm);
-    const mergedPerf = JSON.parse(pk.gqlQuerySync("{documents {perf}}").data.documents[0].perf);
+    const mergedPerf = usfm2perf(mergedUsfm);
 
-
-    //Now split it using a pipeline.
-    const pipelIneH = new PipelineHandler({proskomma: new Proskomma()});
-    const stripAlignmentPipeline_outputs = pipelIneH.runPipeline("stripAlignmentPipeline", {
-        perf: mergedPerf
-    });
-
-    const myStrippedPerf = stripAlignmentPipeline_outputs.perf;
-    const strippedAlign = stripAlignmentPipeline_outputs.strippedAlignment;
-
-    //convert the stripped perf back into usfm.
-    const perfToUsfmPipeline_outputs = await pipelIneH.runPipeline("perfToUsfmPipeline", {
-        perf: myStrippedPerf
-    });
-    const myStrippedUsfm = perfToUsfmPipeline_outputs.usfm;
+    const strippedAlign = {};
+    const myStrippedUsfm = "";
 
 
     return {
@@ -112,30 +118,7 @@ async function usfmToInternalJson( mergedUsfm: string ): Promise<InternalUsfmJso
 }
 
 async function internalJsonToUsfm( json: InternalUsfmJsonFormat ): Promise<string> {
-    //here we run the reverse were we merge it together before saving it out.
-    
-    //first convert the stripped usfm back into perf
-
-    const pk = new Proskomma();
-    pk.importDocument({lang: "xxx", abbr: "yyy"}, "usfm", json.strippedUsfm.text);
-    const myStrippedPerf = JSON.parse(pk.gqlQuerySync("{documents {perf}}").data.documents[0].perf);
-
-
-    //now bring up the pipeline in order to merge it back with the alignment data
-    const pipelineH = new PipelineHandler({proskomma: new Proskomma()});
-    const mergeAlignmentPipeline_output = await pipelineH.runPipeline('mergeAlignmentPipeline', {
-        perf: myStrippedPerf,
-        strippedAlignment: json.alignmentData.perf,
-    });
-    const mergedPerf = mergeAlignmentPipeline_output.perf;
-
-    //now convert that mergedPerf back into usfm
-    const perfToUsfmPipeline_outputs = pipelineH.runPipeline("perfToUsfmPipeline", {
-        perf: mergedPerf,
-    });
-    const mergedUsfm = perfToUsfmPipeline_outputs.usfm;
-
-    return mergedUsfm;
+    return "";
 }
 
 
@@ -452,10 +435,10 @@ export function useEdit( before: string, edit: { start: number, end: number, new
 }
 
 export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocument>,  UsfmEditorAbstraction, UpdateFlushable{
-    private static _context: vscode.ExtensionContext
+    private static _context: vscode.ExtensionContext;
 
     public static register(context: vscode.ExtensionContext): [vscode.Disposable, UsfmEditorAbstraction] {
-        this._context = context
+        this._context = context;
         const provider = new UsfmEditorProvider(context);
         return [vscode.window.registerCustomEditorProvider(UsfmEditorProvider.viewType, provider,{
             webviewOptions: {
@@ -465,7 +448,7 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
         }), provider];
     }
 
-    private static readonly viewType = 'com.lansfords.usfmEditor';
+    private static readonly viewType = 'com.oceEditorTools.usfmEditor';
 
 	/**
 	 * Tracks all known webviews.  
@@ -728,17 +711,17 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
 
                 if (typeof value === 'string') {
                     // @ts-ignore
-                    return value.toString()
+                    return value.toString();
                 } else {
-                    console.log(`_getGlobalKey() invalid type for ${key}: ${typeof value}`, value)
+                    console.log(`_getGlobalKey() invalid type for ${key}: ${typeof value}`, value);
                 }
             } catch (e) {
-                console.warn(`_getGlobalKey() failure reading ${key}`, e)
+                console.warn(`_getGlobalKey() failure reading ${key}`, e);
             }
         } else {
-            console.warn(`_getGlobalKey() invalid workspace or key: ${key}`)
+            console.warn(`_getGlobalKey() invalid workspace or key: ${key}`);
         }
-        return undefined
+        return undefined;
     }
 
     private _setGlobalKey(key:string, value:string):boolean {
@@ -747,15 +730,15 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 // To write a setting
                 this._context?.globalState.update(key, value);
                 const verify = this._context?.globalState.get(key);
-                console.log(`_setGlobalKey() verified ${key}: ${verify}`, verify)
-                return true
+                console.log(`_setGlobalKey() verified ${key}: ${verify}`, verify);
+                return true;
             } catch (e) {
-                console.warn(`_setGlobalKey() failure updating ${key}`, e)
+                console.warn(`_setGlobalKey() failure updating ${key}`, e);
             }
         } else {
-            console.warn(`_setGlobalKey() invalid workspace or key: ${key}`)
+            console.warn(`_setGlobalKey() invalid workspace or key: ${key}`);
         }
-        return false
+        return false;
     }
 
     private _navigateToAndReadFile(webviewPanel: vscode.WebviewPanel, message:any) {
@@ -771,20 +754,20 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
 
             const key = message?.key;
             if(key) {
-                const initialFolder = this._getGlobalKey(key)
+                const initialFolder = this._getGlobalKey(key);
                 if (initialFolder) {
-                    console.log(`_navigateToAndReadFile(${key}) - initial folder: ${initialFolder}`)
+                    console.log(`_navigateToAndReadFile(${key}) - initial folder: ${initialFolder}`);
                     // @ts-ignore
-                    options['defaultUri'] = Uri.file(initialFolder)
-                    console.log(`options:`, options)
+                    options['defaultUri'] = Uri.file(initialFolder);
+                    console.log(`options:`, options);
                 } else {
-                    console.log(`_navigateToAndReadFile(${key}) - missing initial folder`)
+                    console.log(`_navigateToAndReadFile(${key}) - missing initial folder`);
                 }
             }
 
-            let contents_:string|null = null
+            let contents_:string|null = null;
             let fileUri = await window.showOpenDialog(options);
-            let _fileUri:string|null = null
+            let _fileUri:string|null = null;
             if (fileUri && fileUri[0]) {
                 _fileUri = fileUri[0].fsPath;
 
@@ -793,14 +776,14 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
 
                 if (_fileUri) {
                     let data = await readFile(_fileUri, 'utf8');
-                    contents_ = data.toString()
+                    contents_ = data.toString();
                     console.log('_navigateToAndReadFile: File contents: ' + contents_.substr(0, 100));
                 }
 
                 if (contents_) { // if we loaded data, update folder used
                     let dirPath = path.dirname(_fileUri);
                     if (dirPath) {
-                        this._setGlobalKey(key, dirPath)
+                        this._setGlobalKey(key, dirPath);
                     }
                 }
             }
@@ -836,10 +819,10 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
 
             const filePath = message?.filePath;
             if(filePath) {
-                console.log(`_navigateToAndSaveFile - initial file path: ${filePath}`)
+                console.log(`_navigateToAndSaveFile - initial file path: ${filePath}`);
                 // @ts-ignore
-                options['defaultUri'] = Uri.file(filePath)
-                console.log(`_showFileOpenDialog - options:`, options)
+                options['defaultUri'] = Uri.file(filePath);
+                console.log(`_showFileOpenDialog - options:`, options);
             }
 
             let fileUri = await window.showSaveDialog(options);
@@ -901,14 +884,14 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
             case "navigateAndSaveFile":
                 // Code that should run in response to the save message command
                 window.showInformationMessage('saving');
-                this._navigateToAndSaveFile(webviewPanel, message)
+                this._navigateToAndSaveFile(webviewPanel, message);
                 break;
 
             case 'navigateAndReadFile':
                 // Code that should run in response to the save message command
                 window.showInformationMessage('openFilePicker');
-                console.log("openFilePicker", message)
-                this._navigateToAndReadFile(webviewPanel, message)
+                console.log("openFilePicker", message);
+                this._navigateToAndReadFile(webviewPanel, message);
                 break;
 
             case 'getUsfm': //get the aligned USFM for book
@@ -928,7 +911,7 @@ export class UsfmEditorProvider implements vscode.CustomEditorProvider<UsfmDocum
                 const filePath = message.commandArg!;
                 const firstWorkSpaceFolder = vscode.workspace?.workspaceFolders?.[0]?.uri.fsPath;
                 const filePathRebased = firstWorkSpaceFolder ? path.join(firstWorkSpaceFolder, filePath) : filePath;
-                console.log(`getFile`, {filePath, firstWorkSpaceFolder, filePathRebased})
+                console.log(`getFile`, {filePath, firstWorkSpaceFolder, filePathRebased});
 
                 if (filePathRebased) {
                     fs.readFile(filePathRebased, 'utf8', (err, data) => {
