@@ -1,8 +1,8 @@
 {
-  "name": "usfmeditor",
-  "displayName": "UsfmEditor",
+  "name": "oce-usfm-editor",
+  "displayName": "OCE UsfmEditor",
   "description": "",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.77.1"
   },
@@ -51,7 +51,7 @@
     ],
     "customEditors": [
       {
-        "viewType": "com.lansfords.usfmEditor",
+        "viewType": "com.oceEditorTools.usfmEditor",
         "displayName": "Usfm Editor",
         "selector": [
           {
@@ -63,8 +63,8 @@
     "views": {
       "explorer": [
         {
-          "id": "com.lansfords.usfmOutline",
-          "name": "Usfm Outline",
+          "id": "com.oceEditorTools.usfmOutline",
+          "name": "Verse Navigator",
           "when": "usfmOutlineEnabled"
         }
       ]
@@ -73,26 +73,29 @@
       "view/item/context": [
         {
           "command": "usfmOutline.selectReference",
-          "when": "view == com.lansfords.usfmOutline && (viewItem == chapter || viewItem == verse)",
+          "when": "view == com.oceEditorTools.usfmOutline && (viewItem == chapter || viewItem == verse)",
           "group": "inline"
         },{
           "command": "usfmOutline.alignReference",
-          "when": "view == com.lansfords.usfmOutline && viewItem == verse",
+          "when": "view == com.oceEditorTools.usfmOutline && viewItem == verse",
           "group": "inline"
         }
       ]
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
+    "build:webview": "cd webview-ui && pnpm run build",
     "compile": "webpack",
-    "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
     "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "install:all": "pnpm install && cd webview-ui && pnpm install",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "test": "node ./out/test/runTest.js",
+    "vscode:prepublish": "pnpm run package",
+    "watch": "webpack --watch",
+    "watch:webview": "cd webview-ui && pnpm run watch",
+    "watch-tests": "tsc -p . -w --outDir out"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.3",
